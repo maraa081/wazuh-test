@@ -4,14 +4,14 @@
 # --- Target ---
 # Single target machine in the isolated lab. Never change this to a real
 # network or production IP.
-target_ip: "192.168.1.100"
+target_ip: "192.168.30.4"
 target_ssh_port: 22
 
 # Credentials for a dedicated test account on the target machine.
 # This account should have minimal privileges. Never use your real
 # credentials here.
-target_ssh_user: "testuser"
-target_ssh_pass: "testpass"
+target_ssh_user: "vboxuser"
+target_ssh_pass: "max"
 
 # Network interface to use for traffic (e.g., eth0, wlan0).
 # If empty, the OS default route is used.
