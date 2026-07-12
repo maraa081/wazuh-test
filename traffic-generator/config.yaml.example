@@ -1,0 +1,58 @@
+# Traffic Generator Configuration
+# Copy this file to config.yaml and adjust values before running.
+
+# --- Target ---
+# Single target machine in the isolated lab. Never change this to a real
+# network or production IP.
+target_ip: "192.168.1.100"
+target_ssh_port: 22
+
+# Credentials for a dedicated test account on the target machine.
+# This account should have minimal privileges. Never use your real
+# credentials here.
+target_ssh_user: "testuser"
+target_ssh_pass: "testpass"
+
+# Network interface to use for traffic (e.g., eth0, wlan0).
+# If empty, the OS default route is used.
+interface: ""
+
+# --- Session ---
+# Total duration in seconds for a single run. Set to 0 for indefinite.
+total_duration_seconds: 3600
+
+# Ratio of benign vs malicious module selections.
+# 0.7 means 70% of executions will be benign, 30% malicious.
+benign_ratio: 0.7
+
+# Minimum and maximum pause (seconds) between module executions.
+# A random value in this range is chosen each time.
+pause_min: 5
+pause_max: 30
+
+# --- Intensity ---
+# Requests per second for each module type. Lower values produce more
+# realistic noise, higher values increase the chance of triggering
+# Wazuh detection rules.
+intensity:
+  port_scan: 1          # single pass, no repetition
+  bruteforce: 5         # attempts per second
+  dos_flood: 20         # packets per second during burst
+  exfiltration: 10      # megabytes per second
+  benign_web: 2          # requests per second
+  benign_dns: 1          # queries per second
+  benign_icmp: 2         # packets per second
+  benign_filetransfer: 5 # megabytes per second
+
+# --- Burst limits ---
+# Malicious actions are kept short by design. These limits cap them so
+# they never saturate the target for more than a few seconds.
+burst:
+  dos_seconds: 20        # max duration of a DOS burst
+  bruteforce_attempts: 30  # max password attempts per bruteforce run
+
+# --- Timing profile ---
+# If real_timing is true, the scheduler adjusts pause lengths so that
+# executions are more frequent during business hours (08:00-18:00 Mon-Fri)
+# and sparser at night and on weekends.
+real_timing: false
