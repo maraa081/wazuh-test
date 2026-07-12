@@ -1,0 +1,94 @@
+# Attack Type to Wazuh Rule Mapping
+#
+# This file maps the attack types you log in your Kali campaign windows to the
+# Wazuh rules that should fire when that attack is detected.
+#
+# The labeling script (02_label_dataset.py) uses this mapping to decide whether
+# an alert within a given time window is a true positive for that attack type.
+# If an alert's rule.groups overlap with the groups_include list, it is marked
+# as a probable true positive (subject to time window match).
+#
+# Mapping strategy:
+#   groups_include  -> alert must have at least one of these rule.groups
+#   groups_exclude  -> if alert has any of these, it is excluded (e.g. login
+#                      success during a bruteforce window is noise, not TP)
+#   rule_id_range   -> optional numerical range for rule IDs
+#   min_level       -> optional minimum rule.level threshold
+#
+# groups_include is the primary filter because rule.groups are more stable
+# across Wazuh versions than rule IDs. Rule IDs are used as a secondary filter
+# to tighten the match.
+
+attack_types:
+
+  # ---------------------------------------------------------------------------
+  # SSH BRUTEFORCE
+  # ---------------------------------------------------------------------------
+  # Triggered by hydra, medusa, crowbar, or manual SSH password guessing
+  # against port 22/tcp.
+  #
+  # Wazuh rules triggered (standard ruleset):
+  #   5700: Attempt to login using a non-existent user
+  #   5710: SSH bruteforce (multiple failed auth in <short time>)
+  #   5712: SSH scan attack (many auth attempts from one IP)
+  #   5715: SSH compressed attack detected
+  #   5716: SSHD brute force trying to get access to the system
+  #
+  ssh_bruteforce:
+    description: "SSH password guessing or bruteforce (hydra, medusa, manual)"
+    groups_include:
+      - "authentication_failed"
+      - "sshd"
+    groups_exclude:
+      - "authentication_success"
+    rule_id_range: [5700, 5760]
+    min_level: 3
+
+  # ---------------------------------------------------------------------------
+  # NMAP SYN SCAN (stealth / half-open)
+  # ---------------------------------------------------------------------------
+  # Nmap SYN scan (-sS) sends SYN packets and reads SYN/ACK responses without
+  # completing the TCP handshake. Wazuh detects this via connection attempts
+  # that never complete.
+  #
+  # Wazuh rules triggered:
+  #   531: Nmap scan detected
+  #   532: Nmap FIN scan detected (unusual for SYN, but included for safety)
+  #   534: Nmap sweep detected
+  #   540: Generic network scan detected
+  #
+  nmap_syn_scan:
+    description: "Nmap SYN stealth port scan (-sS)"
+    groups_include:
+      - "nmap"
+      - "scan"
+      - "recon"
+    groups_exclude: []
+    rule_id_range: [530, 545]
+    min_level: 0
+
+  # ---------------------------------------------------------------------------
+  # NMAP SERVICE SCAN (version detection)
+  # ---------------------------------------------------------------------------
+  # Nmap service scan (-sV) connects to open ports and probes for version
+  # banners. It produces more complete connections than a SYN scan and may
+  # trigger different Wazuh rules (e.g. connection logging on specific ports).
+  #
+  # In practice, Wazuh's standard rules often flag service scans under the
+  # same port_scan rules as SYN scans, but with different timing patterns
+  # (slower, fewer unique ports per second). We keep them as a separate
+  # attack type in the dataset so the model can learn the difference.
+  #
+  # Wazuh rules triggered:
+  #   531: Nmap scan detected (also catches service probes)
+  #   540: Generic network scan detected
+  #
+  nmap_service_scan:
+    description: "Nmap service version detection (-sV)"
+    groups_include:
+      - "nmap"
+      - "scan"
+      - "recon"
+    groups_exclude: []
+    rule_id_range: [530, 550]
+    min_level: 0

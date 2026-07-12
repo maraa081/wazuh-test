@@ -1,0 +1,61 @@
+# Environment variables and secrets
+.env
+.env.local
+*.token
+credentials*
+*.pem
+*.key
+*_rsa
+*_dsa
+*_ed25519
+id_*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.Python
+env/
+venv/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data - generated files are not committed
+data/raw_alerts/*
+data/labeled/*
+data/predictions/*
+features/*
+models/*
+reports/*
+!data/raw_alerts/.gitkeep
+!data/labeled/.gitkeep
+!data/predictions/.gitkeep
+!features/.gitkeep
+!models/.gitkeep
+!reports/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+scratch/

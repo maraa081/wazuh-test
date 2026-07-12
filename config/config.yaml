@@ -1,0 +1,122 @@
+# Wazuh AI Filter - Main Configuration
+# All sensitive values are loaded from environment variables at runtime.
+# See README.md for the list of required environment variables.
+
+###############################################################################
+# WA ZUH API CONFIGURATION
+###############################################################################
+wazuh:
+  api:
+    # URL of the Wazuh manager API. Wazuh uses port 55000 by default.
+    base_url: "https://localhost:55000"
+    # Credentials are read from env vars at runtime:
+    #   WAZUH_API_USER
+    #   WAZUH_API_PASSWORD
+    # These are never stored in this file or any other tracked file.
+    ssl_verify: false
+    # Wazuh API rate limits are generous, but we add a small delay between
+    # paginated requests to avoid hammering the manager during heavy load.
+    request_delay_ms: 100
+    # Maximum alerts per API request page. Wazuh defaults to 500, we keep
+    # it reasonable to avoid timeouts on large filters.
+    page_size: 500
+    # How far back to look when doing initial collection. ISO 8601 duration.
+    # "7d" = 7 days back from now.
+    initial_lookback: "7d"
+
+###############################################################################
+# COLLECTION SETTINGS
+###############################################################################
+collection:
+  # Output format for raw alert storage. jsonl (one JSON object per line) is
+  # the default because it is append-friendly and easy to process with I/O
+  # streaming, unlike a single giant JSON array.
+  output_format: "jsonl"
+  # Directory where raw alert files are saved (relative to project root).
+  # Subdirectories by campaign or date are created automatically.
+  raw_data_dir: "data/raw_alerts"
+
+###############################################################################
+# LABELING CONFIGURATION
+###############################################################################
+labeling:
+  # Path to the attack windows CSV file (relative to project root).
+  # The user fills this in after each Kali campaign.
+  attack_windows_file: "data/attack_windows/attack_campaigns.csv"
+  # Path to the attack type to Wazuh rule groups mapping.
+  attack_mapping_file: "config/attack_mapping.yaml"
+  # Output file for the labeled dataset (relative to project root).
+  output_file: "data/labeled/labeled_dataset.csv"
+  # Timezone for alert timestamps. Wazuh stores everything in UTC internally.
+  # We work in UTC for processing and convert for display only.
+  timezone: "UTC"
+  # Margin in seconds: alerts close to but outside the window boundary can be
+  # optionally flagged for manual review. Set to 0 to disable.
+  margin_seconds: 60
+
+###############################################################################
+# FEATURE ENGINEERING
+###############################################################################
+features:
+  # Window sizes for frequency-based features, in minutes.
+  # Each window produces a "count of same rule.id" and "count of same srcip"
+  # feature.
+  frequency_windows_min:
+    - 1
+    - 5
+    - 15
+  # Maximum number of distinct rule IDs to one-hot encode. Any rule ID beyond
+  # this count is bucketed into "other". Keeps the feature matrix from blowing
+  # up as we add more campaigns.
+  max_rules_onehot: 50
+  # Maximum number of decoder names to one-hot encode. Same logic.
+  max_decoders_onehot: 20
+  # Whether to compute srcip geolocation features via GeoIP.
+  # Set false if you do not have a GeoIP database available.
+  enable_geoip: false
+
+###############################################################################
+# MODEL TRAINING
+###############################################################################
+model:
+  # Algorithm: xgboost is the default. LightGBM or random_forest are valid
+  # alternatives if you prefer.
+  algorithm: "xgboost"
+  # Hyperparameters for XGBoost. These are sensible defaults for a binary
+  # classification with imbalanced classes. Tweak after the first evaluation.
+  xgboost_params:
+    n_estimators: 300
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    scale_pos_weight: 3.0
+    eval_metric: "aucpr"
+    early_stopping_rounds: 20
+    random_state: 42
+  # Train/test split ratio.
+  test_size: 0.25
+  # Cross-validation folds.
+  cv_folds: 5
+  # Output directory for trained model artifacts (relative to project root).
+  model_dir: "models"
+  # Whether to compute and save SHAP explanations on the test set.
+  enable_shap: true
+
+###############################################################################
+# INFERENCE SERVICE
+###############################################################################
+service:
+  # How often the polling loop checks for new alerts, in seconds.
+  poll_interval_seconds: 60
+  # SQLite database path for storing prediction results (relative to project
+  # root).
+  db_path: "data/predictions/predictions.db"
+  # Threshold for binary classification: alert is marked as TP if the model's
+  # TP probability is above this threshold. Lower = more sensitive, fewer
+  # FNs but more FPs. Default 0.5 is standard.
+  classification_threshold: 0.5
+  # FastAPI server settings for the results query API.
+  api:
+    host: "127.0.0.1"
+    port: 9090

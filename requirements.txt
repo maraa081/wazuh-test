@@ -1,0 +1,33 @@
+# Core data processing
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Machine learning
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+
+# Model interpretation
+shap>=0.42.0
+
+# HTTP requests (Wazuh API and general)
+requests>=2.31.0
+
+# YAML config parsing
+pyyaml>=6.0
+
+# Inference service API
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Database
+# SQLite is used via Python's standard library sqlite3; no extra package needed.
+
+# Data validation
+pydantic>=2.0.0
+
+# Scheduling / retry logic
+tenacity>=8.2.0
+
+# Progress bars for long-running tasks
+tqdm>=4.65.0
