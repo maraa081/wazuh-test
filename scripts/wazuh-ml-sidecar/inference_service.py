@@ -280,6 +280,19 @@ def watch_alerts(alert_path, model, feature_extractor, db_path,
     """Monitor alerts.json for new lines and run inference."""
     conn = sqlite3.connect(db_path)
 
+    # Pre-populate buffer from existing DB for accurate frequency features
+    try:
+        existing = conn.execute("SELECT features_json, timestamp, rule_id FROM predictions ORDER BY timestamp ASC").fetchall()
+        for feat_json, ts, rid in existing:
+            try:
+                feat = json.loads(feat_json)
+                ts_num = float(datetime.fromisoformat(ts.replace("Z","+00:00")).timestamp())
+                feature_extractor.buffer.append((ts_num, rid, feat.get("srcip","")))
+            except: pass
+        print(f"[WATCH] Pre-populated buffer: {len(existing)} alerts")
+    except Exception as e:
+        print(f"[WATCH] Buffer pre-population skipped: {e}")
+
     # Get file size to skip existing lines
     file_pos = os.path.getsize(alert_path) if skip_existing else 0
 
