@@ -92,23 +92,14 @@ def random_ip_on_lan() -> str:
 # ─── Profiles ──────────────────────────────────────────────────────
 
 def benign_ssh():
-    """Legitimate SSH connections to Manager + peer containers."""
-    my_ip = get_my_ip()
+    """Legitimate SSH connections to Wazuh Manager only."""
     while True:
-        targets = [MANAGER_IP]
-        # Sometimes SSH to another container
-        peer = random_ip_in_docker()
-        if peer != my_ip:
-            targets.append(peer)
-
-        target = random.choice(targets)
         user = random.choice(["vboxuser", "root", "admin"])
-        # Quick connect & disconnect (legit)
         run(["ssh", "-o", "StrictHostKeyChecking=no",
-             "-o", "ConnectTimeout=3",
+             "-o", "ConnectTimeout=5",
              "-o", "BatchMode=yes",
-             f"{user}@{target}", "exit"],
-            timeout=5)
+             f"{user}@{MANAGER_IP}", "exit"],
+            timeout=8)
         delay = random.uniform(15, 45)
         time.sleep(delay)
 
