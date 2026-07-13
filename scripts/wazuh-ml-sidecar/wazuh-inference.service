@@ -1,0 +1,22 @@
+[Unit]
+Description=Wazuh ML Sidecar - Inference Service
+After=network.target wazuh-manager.service
+Requires=wazuh-manager.service
+
+[Service]
+Type=simple
+User=wazuh
+Group=wazuh
+WorkingDirectory=/opt/wazuh-ml-sidecar
+ExecStart=/usr/bin/python3 /opt/wazuh-ml-sidecar/inference_service.py \
+    --alert-file /var/ossec/logs/alerts/alerts.json \
+    --model /opt/wazuh-ml-sidecar/models/xgb_model.json \
+    --db /opt/wazuh-ml-sidecar/data/predictions.db
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

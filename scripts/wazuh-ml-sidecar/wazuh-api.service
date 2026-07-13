@@ -1,0 +1,22 @@
+[Unit]
+Description=Wazuh ML Sidecar - REST API
+After=network.target wazuh-inference.service
+Requires=wazuh-inference.service
+
+[Service]
+Type=simple
+User=wazuh
+Group=wazuh
+WorkingDirectory=/opt/wazuh-ml-sidecar
+ExecStart=/usr/bin/python3 /opt/wazuh-ml-sidecar/api_service.py \
+    --db /opt/wazuh-ml-sidecar/data/predictions.db \
+    --port 9090 \
+    --host 0.0.0.0
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
