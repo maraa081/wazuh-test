@@ -52,7 +52,9 @@ app.add_middleware(
 
 # ─── Database connection ─────────────────────────────────────────
 
-def get_db(db_path: str = DEFAULT_DB_FILE):
+def get_db(db_path: str = None):
+    if db_path is None:
+        db_path = DEFAULT_DB_FILE
     """Return a connection to the SQLite DB (thread-safe for reads)."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -226,6 +228,7 @@ async def cleanup(keep_days: int = Query(7, ge=1)):
 # ─── Main ─────────────────────────────────────────────────────────
 
 def main():
+    global DEFAULT_DB_FILE
     parser = argparse.ArgumentParser(description="Wazuh ML Sidecar - REST API")
     parser.add_argument("--db", default=DEFAULT_DB_FILE)
     parser.add_argument("--port", type=int, default=9090)
@@ -233,7 +236,6 @@ def main():
     parser.add_argument("--reload", action="store_true", help="Auto-reload on code change")
     args = parser.parse_args()
 
-    global DEFAULT_DB_FILE
     DEFAULT_DB_FILE = args.db
 
     print("=" * 60)
