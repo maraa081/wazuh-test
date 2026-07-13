@@ -169,12 +169,12 @@ async def get_predictions(
 
 
 @app.get("/predictions/recent")
-async def get_recent(limit: int = Query(50, ge=1, le=200)):
+async def get_recent(limit: int = 50):
     """Get the most recent predictions."""
-    return await get_predictions(limit=limit, offset=0)
+    return await get_predictions(limit=limit, offset=0, prediction=None, rule_id=None, since=None)
 
 
-@app.get("/predictions/{alert_id}")
+@app.get("/predictions/{alert_id}")@app.get("/predictions/{alert_id}")
 async def get_prediction(alert_id: str):
     """Get prediction for a specific alert ID."""
     db = get_db()
