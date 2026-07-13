@@ -7,9 +7,19 @@ echo " WAZUH API TEST — $(date)"
 echo "================================================================"
 echo ""
 
-# Credentials (extracted from install tar)
-API_USER="wazuh-wui"
-API_PASS="tpuKUfY7Auj2kd9yeRBwgiNjHH+mmNso"
+# Credentials - à adapter ou passer en variable d'environnement
+# Par défaut : cherche dans le fichier passwords extrait du tar d'install
+API_USER="${WAZUH_API_USER:-wazuh-wui}"
+API_PASS="${WAZUH_API_PASS:-}"
+if [ -z "$API_PASS" ] && [ -f /tmp/wazuh-passwords.txt ]; then
+    API_PASS=$(grep "wazuh-wui" /tmp/wazuh-passwords.txt | head -1 | rev | cut -d"'" -f2 | rev 2>/dev/null || echo "")
+fi
+if [ -z "$API_PASS" ]; then
+    echo "⚠️  Pas de mot de passe défini."
+    echo "   Utilise: export WAZUH_API_PASS='mon_password'"
+    echo "   Ou édite ce script avec le bon password"
+    exit 1
+fi
 BASE="https://localhost:55000"
 
 # Get token
