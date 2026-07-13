@@ -298,71 +298,43 @@ def watch_alerts(alert_path, model, feature_extractor, db_path,
         try:
             size = os.path.getsize(alert_path)
             if size < file_pos:
-                # File was rotated
                 print("[WATCH] File rotated, resetting position")
                 file_pos = 0
-
-            if size > file_pos:
-                with open(alert_path) as f:
-                    f.seek(file_pos)
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-
-                        processed += 1
-                        try:
-                            alert = json.loads(line)
-                        except json.JSONDecodeError:
-                            continue
-
-                        # Only process Suricata alerts
-                        if not feature_extractor.is_suricata_alert(alert):
-                            continue
-
-                        suricata_count += 1
-                        alert_id = alert.get("id", f"unknown_{suricata_count}")
-                        ts = alert.get("timestamp", "")
-                        rule_id = alert.get("rule", {}).get("id", "")
-                        rule_desc = alert.get("rule", {}).get("description", "")
-                        agent = alert.get("agent", {}).get("name", "")
-                        srcip = alert.get("data", {}).get("srcip", "")
-
-                        # Extract features
-                        features = feature_extractor.extract(alert)
-                        X = feature_extractor.to_array(features)
-
-                        # Predict
-                        proba = model.predict_proba(X)[0, 1]
-                        prediction = 1 if proba >= 0.5 else 0
-
-                        if prediction == 0:
-                            fp_count += 1
-                        else:
-                            tp_count += 1
-
-                        # Store
-                        store_prediction(
-                            conn, alert_id, ts, rule_id, rule_desc,
-                            agent, srcip, prediction, proba, features
-                        )
-
-                        # Log every 100
-                        if suricata_count % 100 == 0:
-                            status = "FP" if prediction == 0 else "TP"
-                            print(f"  [{suricata_count}] {alert_id[:20]:20} rule={rule_id:>6} "
-                                  f"score={proba:.3f} -> {status}")
-
+                time.sleep(1)
+                continue
+            if size <= file_pos:
+                time.sleep(1)
+                continue
+            with open(alert_path) as f:
+                f.seek(file_pos)
+                for line in f:
+                    line = line.strip()
+                    if not line: continue
+                    try: alert = json.loads(line)
+                    except: continue
+                    if not feature_extractor.is_suricata_alert(alert): continue
+                    suricata_count += 1
+                    alert_id = alert.get("id", f"unknown_{suricata_count}")
+                    ts = alert.get("timestamp", "")
+                    rule_id = alert.get("rule", {}).get("id", "")
+                    rule_desc = alert.get("rule", {}).get("description", "")
+                    agent = alert.get("agent", {}).get("name", "")
+                    srcip = alert.get("data", {}).get("srcip", "")
+                    features = feature_extractor.extract(alert)
+                    X = feature_extractor.to_array(features)
+                    proba = model.predict_proba(X)[0, 1]
+                    prediction = 1 if proba >= 0.5 else 0
+                    if prediction == 0: fp_count += 1
+                    else: tp_count += 1
+                    store_prediction(conn, alert_id, ts, rule_id, rule_desc, agent, srcip, prediction, proba, features)
+                    if suricata_count % 100 == 0:
+                        status = "FP" if prediction == 0 else "TP"
+                        print(f"  [{suricata_count}] {alert_id[:20]:20} rule={rule_id:>6} score={proba:.3f} -> {status}")
                 file_pos = f.tell()
-
         except FileNotFoundError:
-            print(f"[WATCH] File not found: {alert_path}")
-            print("[WATCH] Waiting for file to appear...")
-            time.sleep(5)
-            continue
+            print(f"[WATCH] File not found: {alert_path}"); time.sleep(5); continue
         except Exception as e:
             print(f"[ERROR] {e}")
-
         time.sleep(poll_interval)
 
 
