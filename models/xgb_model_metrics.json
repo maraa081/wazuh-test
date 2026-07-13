@@ -1,0 +1,135 @@
+{
+  "accuracy": 0.9842,
+  "precision": 0.9484,
+  "recall": 0.9848,
+  "f1_score": 0.9662,
+  "f2_score": 0.9773,
+  "roc_auc": 0.999,
+  "pr_auc": 0.9967,
+  "confusion_matrix": [
+    [
+      7811,
+      127
+    ],
+    [
+      36,
+      2332
+    ]
+  ],
+  "scale_pos_weight": 3.35,
+  "train_samples": 30915,
+  "test_samples": 10306,
+  "test_tp": 2368,
+  "feature_names": [
+    "hour",
+    "dayofweek",
+    "is_night",
+    "rule_level",
+    "srcip_type_docker",
+    "srcip_type_lan",
+    "srcip_type_external",
+    "srcip_type_unknown",
+    "count_rule_1min",
+    "count_rule_5min",
+    "count_rule_15min",
+    "count_srcip_1min",
+    "count_srcip_5min",
+    "count_srcip_15min",
+    "interval_since_last",
+    "agent_CibleWazuh",
+    "agent_vbox",
+    "agent_UbuntuWazuh",
+    "rule_2501",
+    "rule_19004",
+    "rule_5901",
+    "rule_86601",
+    "rule_5551",
+    "rule_52002",
+    "rule_5763",
+    "rule_5403",
+    "rule_2902",
+    "rule_19009",
+    "rule_5740",
+    "rule_503",
+    "rule_5104",
+    "rule_5712",
+    "rule_40704",
+    "rule_5503",
+    "rule_5715",
+    "rule_5402",
+    "rule_5762",
+    "rule_40111",
+    "rule_19007",
+    "rule_5760",
+    "rule_19008",
+    "rule_5710",
+    "rule_5502",
+    "rule_2904",
+    "rule_5758",
+    "rule_5501",
+    "rule_2502",
+    "rule_2901"
+  ],
+  "top_features": [
+    {
+      "name": "hour",
+      "importance": 0.4398
+    },
+    {
+      "name": "count_rule_5min",
+      "importance": 0.3746
+    },
+    {
+      "name": "count_srcip_5min",
+      "importance": 0.0815
+    },
+    {
+      "name": "count_rule_15min",
+      "importance": 0.0674
+    },
+    {
+      "name": "count_rule_1min",
+      "importance": 0.0123
+    },
+    {
+      "name": "count_srcip_1min",
+      "importance": 0.0104
+    },
+    {
+      "name": "count_srcip_15min",
+      "importance": 0.0044
+    },
+    {
+      "name": "rule_level",
+      "importance": 0.0043
+    },
+    {
+      "name": "interval_since_last",
+      "importance": 0.0034
+    },
+    {
+      "name": "agent_CibleWazuh",
+      "importance": 0.0019
+    },
+    {
+      "name": "dayofweek",
+      "importance": 0.0
+    },
+    {
+      "name": "is_night",
+      "importance": 0.0
+    },
+    {
+      "name": "srcip_type_docker",
+      "importance": 0.0
+    },
+    {
+      "name": "srcip_type_lan",
+      "importance": 0.0
+    },
+    {
+      "name": "srcip_type_external",
+      "importance": 0.0
+    }
+  ]
+}
