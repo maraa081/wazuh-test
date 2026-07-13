@@ -1,7 +1,7 @@
 #!/bin/bash
 # run-campaign.sh — Orchestrateur de campagne Docker massive
-# Usage: sudo bash run-campaign.sh
-set -euo pipefail
+# Usage: sudo bash run-campaign.sh [--no-build] [--duration 600]
+set -uo pipefail
 
 NET_NAME="simulation_net"
 NET_SUBNET="172.20.0.0/16"
@@ -9,165 +9,152 @@ NET_GW="172.20.0.1"
 CONTAINER_TOTAL=100
 IMAGE_NAME="traffic-agent:latest"
 CAMPAIGN_DURATION=600
+NO_BUILD=false
+
+# Parse options
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --no-build) NO_BUILD=true; shift ;;
+        --duration) CAMPAIGN_DURATION="$2"; shift 2 ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
+
 CAMPAIGN_ID="CAMP_DOCKER_$(date +%Y%m%d_%H%M%S)"
+CAMPAIGN_FILE="/tmp/${CAMPAIGN_ID}.csv"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CAMPAIGN_FILE="${PROJECT_DIR}/data/attack_windows/${CAMPAIGN_ID}.csv"
-
-echo "═══════════════════════════════════════════════════════════════"
+echo "================================================================"
 echo " DOCKER CAMPAIGN RUNNER — $CAMPAIGN_ID"
-echo "═══════════════════════════════════════════════════════════════"
-echo "  Réseau:    $NET_NAME ($NET_SUBNET)"
-echo "  Conteneurs: $CONTAINER_TOTAL (99 benins + 1 malveillant)"
-echo "  Duree:     ${CAMPAIGN_DURATION}s (10 min)"
+echo "================================================================"
+echo "  Reseau:    $NET_NAME ($NET_SUBNET)"
+echo "  Containers: $CONTAINER_TOTAL (99 benign + 1 malicious)"
+echo "  Duree:     ${CAMPAIGN_DURATION}s"
 echo "  Fichier:   $CAMPAIGN_FILE"
 echo ""
 
-if [ "$(id -u)" -ne 0 ]; then echo "ERREUR: Lance en root (sudo)"; exit 1; fi
+if [ "$(id -u)" -ne 0 ]; then echo "ERROR: run as root"; exit 1; fi
 
-# ─── Etape 1 : Creation du reseau Docker ──────────────────────────
-echo "=== Etape 1/7 : Creation du reseau Docker ==="
-if docker network inspect "$NET_NAME" >/dev/null 2>&1; then
-    echo "  Reseau $NET_NAME existe deja"
-else
-    docker network create --driver bridge --subnet="$NET_SUBNET" --gateway="$NET_GW" "$NET_NAME"
-    echo "  OK Reseau $NET_NAME cree ($NET_SUBNET)"
-fi
+# --- 1. Reseau Docker ---
+echo "--- 1/7: Docker network ---"
+docker network inspect "$NET_NAME" >/dev/null 2>&1 && \
+    echo "  Network $NET_NAME exists" || \
+    { docker network create --driver bridge --subnet="$NET_SUBNET" --gateway="$NET_GW" "$NET_NAME" && \
+      echo "  Network $NET_NAME created"; }
 
-# ─── Etape 2 : Recuperer l'interface bridge Docker ────────────────
+# --- 2. Bridge interface ---
 echo ""
-echo "=== Etape 2/7 : Detection interface bridge ==="
+echo "--- 2/7: Bridge interface ---"
 sleep 2
-BRIDGE_IFACE=$(ip -br addr show | grep " $NET_GW/" | awk '{print $1}' 2>/dev/null || echo "")
+BRIDGE_IFACE=""
+BRIDGE_IFACE=$(ip -br addr show | grep " $NET_GW/" 2>/dev/null | awk '{print $1}' || true)
 if [ -z "$BRIDGE_IFACE" ]; then
-    BRIDGE_IFACE=$(basename "$(ip route show "$NET_SUBNET" 2>/dev/null | head -1 | awk '{print $3}')" 2>/dev/null || echo "br-unknown")
+    BRIDGE_IFACE=$(ip route | grep "$NET_SUBNET" 2>/dev/null | awk '{print $3}' || echo "br-unknown")
 fi
-echo "  Interface bridge detectee: $BRIDGE_IFACE"
+echo "  Interface: $BRIDGE_IFACE"
 
-# ─── Etape 3 : Config Suricata pour ecouter sur le bridge ─────────
+# --- 3. Suricata ---
 echo ""
-echo "=== Etape 3/7 : Configuration Suricata (bridge) ==="
-SURICATA_CONF="/etc/suricata/suricata.yaml"
-if grep -q "$BRIDGE_IFACE" "$SURICATA_CONF" 2>/dev/null; then
-    echo "  $BRIDGE_IFACE deja dans af-packet"
+echo "--- 3/7: Suricata config ---"
+if [ -f /etc/suricata/suricata.yaml ]; then
+    grep -q "$BRIDGE_IFACE" /etc/suricata/suricata.yaml 2>/dev/null || \
+        sed -i "/- interface: enp0s8/a\  - interface: $BRIDGE_IFACE" /etc/suricata/suricata.yaml
+    grep -q "172.20.0.0" /etc/suricata/suricata.yaml 2>/dev/null || \
+        sed -i 's/HOME_NET: "\[\(.*\)\]"/HOME_NET: "[\1,172.20.0.0\/16]"/' /etc/suricata/suricata.yaml
+    systemctl restart suricata 2>/dev/null || true
+    echo "  OK"
 else
-    sed -i "/- interface: enp0s8/a\  - interface: $BRIDGE_IFACE" "$SURICATA_CONF"
-    echo "  OK $BRIDGE_IFACE ajoute a af-packet"
+    echo "  /etc/suricata/suricata.yaml not found, skipping"
 fi
-if grep -q "172.20.0.0" "$SURICATA_CONF" 2>/dev/null; then
-    echo "  Docker subnet deja dans HOME_NET"
+
+# --- 4. Build image ---
+echo ""
+echo "--- 4/7: Docker image ---"
+if [ "$NO_BUILD" = false ]; then
+    # Download Dockerfile and profiles.py from repo
+    REPO_BASE="https://raw.githubusercontent.com/maraa081/wazuh-test/main/scripts/docker-dataset"
+    mkdir -p /tmp/docker-dataset
+    curl -sL "$REPO_BASE/Dockerfile" -o /tmp/docker-dataset/Dockerfile
+    curl -sL "$REPO_BASE/profiles.py" -o /tmp/docker-dataset/profiles.py
+    docker build -t "$IMAGE_NAME" /tmp/docker-dataset 2>&1 | tail -3
+    echo "  Image $IMAGE_NAME built"
 else
-    sed -i 's/HOME_NET: "\[\(.*\)\]"/HOME_NET: "[\1,172.20.0.0\/16]"/' "$SURICATA_CONF"
-    echo "  OK 172.20.0.0/16 ajoute a HOME_NET"
+    echo "  Skipping build (--no-build)"
 fi
-systemctl restart suricata 2>/dev/null || true
-sleep 2
-systemctl is-active suricata >/dev/null && echo "  OK Suricata redemarre" || echo "  Attention: echec restart Suricata"
 
-# ─── Etape 4 : Build de l'image Docker ────────────────────────────
+# --- 5. Launch containers ---
 echo ""
-echo "=== Etape 4/7 : Build image Docker ==="
-docker build -t "$IMAGE_NAME" "$SCRIPT_DIR" 2>&1 | tail -3
-echo "  OK Image $IMAGE_NAME construite"
+echo "--- 5/7: Launching $CONTAINER_TOTAL containers ---"
+CONTAINER_NAMES=()
+START_UTC=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "  Start: $START_UTC"
 
-# ─── Etape 5 : Lancement des conteneurs ──────────────────────────
-echo ""
-echo "=== Etape 5/7 : Lancement des $CONTAINER_TOTAL conteneurs ==="
-
-declare -a CONTAINER_NAMES=()
-CURRENT_TIME=$(date +%s)
-START_UTC=$(date -u -d "@$CURRENT_TIME" +"%Y-%m-%dT%H:%M:%SZ")
-echo "  Debut: $START_UTC"
-
-# Un conteneur malveillant (agent-100)
-docker run -d \
-    --name "agent-100" \
-    --network "$NET_NAME" \
-    --cpus="0.1" \
-    --memory="64m" \
-    -e "PROFILE=malicious" \
-    "$IMAGE_NAME" >/dev/null
+# Malicious container (agent-100)
+docker run -d --name agent-100 --network "$NET_NAME" --cpus="0.1" --memory="64m" -e PROFILE=malicious "$IMAGE_NAME" >/dev/null
 CONTAINER_NAMES+=("agent-100")
-echo "  agent-100 -> malicious"
+echo "  [agent-100] malicious"
 
-# 99 conteneurs benins avec index propre
+# 99 benign containers
 PROFILES_BENIGN=("benign_ssh" "benign_dns" "benign_http" "benign_ping")
-PROFILES_WEIGHT=(30 20 30 19)
-
+WEIGHTS=(30 20 30 19)
 cid=0
 for i in $(seq 1 99); do
-    # Accumulateur: on determine le profil en accumulant les poids
-    acc=0
-    selected=0
-    for p in "${!PROFILES_WEIGHT[@]}"; do
-        acc=$((acc + PROFILES_WEIGHT[p]))
-        if [ "$i" -le "$acc" ]; then
-            selected=$p
-            break
-        fi
+    acc=0; sel=0
+    for p in 0 1 2 3; do
+        acc=$((acc + WEIGHTS[p]))
+        [ "$i" -le "$acc" ] && { sel=$p; break; }
     done
-    profile="${PROFILES_BENIGN[$selected]}"
+    profile="${PROFILES_BENIGN[$sel]}"
     cid=$((cid + 1))
     name=$(printf "agent-%03d" "$cid")
-    docker run -d \
-        --name "$name" \
-        --network "$NET_NAME" \
-        --cpus="0.1" \
-        --memory="64m" \
-        -e "PROFILE=$profile" \
-        "$IMAGE_NAME" >/dev/null
+    docker run -d --name "$name" --network "$NET_NAME" --cpus="0.1" --memory="64m" -e "PROFILE=$profile" "$IMAGE_NAME" >/dev/null
     CONTAINER_NAMES+=("$name")
 done
+echo "  OK - $(docker ps --filter "network=$NET_NAME" -q 2>/dev/null | wc -l) running"
 
-echo "  OK $CONTAINER_TOTAL conteneurs lances (99 benins, 1 malveillant)"
-
-# ─── Etape 6 : Ecrire le CSV de campagne ──────────────────────────
+# --- 6. Campaign CSV ---
 echo ""
-echo "=== Etape 6/7 : Generation du fichier de campagne ==="
-mkdir -p "$(dirname "$CAMPAIGN_FILE")"
-END_UTC=$(date -u -d "@$((CURRENT_TIME + CAMPAIGN_DURATION))" +"%Y-%m-%dT%H:%M:%SZ")
-
+echo "--- 6/7: Campaign file ---"
+END_TS=$(($(date +%s) + CAMPAIGN_DURATION))
+END_UTC=$(date -u -d "@$END_TS" +"%Y-%m-%dT%H:%M:%SZ")
 cat > "$CAMPAIGN_FILE" << CSV
-attack_id,start_utc,end_utc,attack_type,container_count,target_subnet
-${CAMPAIGN_ID},${START_UTC},${END_UTC},benign_traffic,99,all
-${CAMPAIGN_ID},${START_UTC},${END_UTC},malicious_nmap_hydra,1,172.20.0.0/16+192.168.30.0/24
+attack_id,start_utc,end_utc,attack_type,container_count
+${CAMPAIGN_ID},${START_UTC},${END_UTC},benign_traffic,99
+${CAMPAIGN_ID},${START_UTC},${END_UTC},malicious_nmap_hydra,1
 CSV
-echo "  OK $CAMPAIGN_FILE"
-cat "$CAMPAIGN_FILE"
+echo "  $CAMPAIGN_FILE"
 
-# ─── Attente + Stats ──────────────────────────────────────────────
+# --- Wait ---
 echo ""
-echo "=== Attente ${CAMPAIGN_DURATION}s (10 minutes) ==="
-echo "  Ctrl+C pour arreter"
-
-for elapsed in $(seq 0 60 $CAMPAIGN_DURATION); do
-    remaining=$((CAMPAIGN_DURATION - elapsed))
+echo "--- Waiting ${CAMPAIGN_DURATION}s ---"
+echo "  Ctrl+C to stop early (cleans up)"
+STEP=0
+while [ $STEP -lt $CAMPAIGN_DURATION ]; do
     running=$(docker ps --filter "network=$NET_NAME" -q 2>/dev/null | wc -l)
-    echo "  [${remaining}s] Actifs: $running"
+    remaining=$((CAMPAIGN_DURATION - STEP))
+    echo "  [${remaining}s] Containers running: $running"
     sleep 60
+    STEP=$((STEP + 60))
 done
 
+# --- 7. Cleanup ---
 echo ""
-
-# ─── Etape 7 : Cleanup ────────────────────────────────────────────
-echo "=== Etape 7/7 : Nettoyage ==="
-echo "  Arret des conteneurs..."
+echo "--- 7/7: Cleanup ---"
+echo "  Stopping containers..."
 for name in "${CONTAINER_NAMES[@]}"; do
     docker stop "$name" 2>/dev/null || true
 done
-echo "  Suppression des conteneurs..."
+echo "  Removing containers..."
 for name in "${CONTAINER_NAMES[@]}"; do
     docker rm "$name" 2>/dev/null || true
 done
+echo "  Done"
 
-echo "  OK Nettoyage termine"
 echo ""
-echo "═══════════════════════════════════════════════════════════════"
-echo " CAMPAGNE TERMINEE"
-echo "═══════════════════════════════════════════════════════════════"
-echo "  Fichier: $CAMPAIGN_FILE"
-echo "  Reseau conserve: $NET_NAME"
-echo "  Image conservee: $IMAGE_NAME"
-echo "  Prochaine: pipeline/01_collect_alerts.py"
-echo "═══════════════════════════════════════════════════════════════"
+echo "================================================================"
+echo " CAMPAIGN COMPLETE"
+echo "================================================================"
+echo "  Campaign CSV: $CAMPAIGN_FILE"
+echo "  Copy to project:"
+echo "    mkdir -p /path/to/wazuh-test/data/attack_windows/"
+echo "    cp $CAMPAIGN_FILE /path/to/wazuh-test/data/attack_windows/"
+echo "================================================================"
