@@ -233,8 +233,7 @@ class FeatureExtractor:
             if prev_rule == rule_id and diff < interval_since_last:
                 interval_since_last = diff
 
-        # Add current alert to buffer for future calls
-        self.buffer.append((ts_num, rule_id, srcip))
+        # Add to buffer - this runs for each extract call in case of standalone use
 
         # ── Build feature vector ──
         # Start with zeros for all known features
