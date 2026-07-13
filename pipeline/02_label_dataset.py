@@ -1,43 +1,228 @@
-# Stage 2: label raw alerts using attack time windows.
-#
-# This script reads the attack windows CSV file (filled in by you after each
-# Kali campaign) and the raw alerts collected in stage 1. For each alert, it
-# checks whether the alert's timestamp falls within any attack window and
-# whether the alert's rule.groups match the attack type in that window.
-#
-# Alerts inside an attack window with a matching rule type are labeled "1"
-# (true positive). All others are labeled "0" (false positive).
-#
-# The attack mapping file (config/attack_mapping.yaml) defines which Wazuh
-# rule.groups correspond to each attack_type value. This mapping is what
-# connects your manual campaign notes to the automated labeling logic.
-#
-# Usage:
-#   python pipeline/02_label_dataset.py
-#
-# Inputs:
-#   data/raw_alerts/*.jsonl         - raw alerts from stage 1
-#   data/attack_windows/*.csv       - your campaign time windows
-#   config/attack_mapping.yaml      - attack type to rule groups mapping
-#
-# Output:
-#   data/labeled/labeled_dataset.csv - alerts with a "label" column added
+#!/usr/bin/env python3
+"""
+02_label_dataset.py — Label collected alerts using campaign CSV windows.
 
-import sys
+Usage:
+  python3 02_label_dataset.py \\
+    --alerts /tmp/alerts_20260713_193152.jsonl \\
+    --campaign /tmp/CAMP_DOCKER_20260713_204420.csv \\
+    --output /tmp/dataset_labeled.csv
+"""
+
+import argparse
+import csv
+import json
 import os
+import sys
+from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+def parse_iso(ts_str: str) -> datetime:
+    """Parse ISO timestamp with timezone handling."""
+    ts_str = ts_str.strip()
+    if ts_str.endswith("Z"):
+        ts_str = ts_str[:-1] + "+00:00"
+    # Handle +0200 format
+    if "+" in ts_str[10:] and ":" not in ts_str[ts_str.index("+") :]:
+        sign = "+" if "+" in ts_str[10:] else "-"
+        parts = ts_str.split(sign)
+        if len(parts) == 2 and len(parts[1]) == 4:
+            h, m = parts[1][:2], parts[1][2:]
+            ts_str = parts[0] + sign + h + ":" + m
+    return datetime.fromisoformat(ts_str)
+
+
+def load_campaigns(campaign_path: str) -> list:
+    """Load campaign windows from CSV."""
+    campaigns = []
+    with open(campaign_path) as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            campaigns.append({
+                "id": row["attack_id"].strip(),
+                "start": parse_iso(row["start_utc"]),
+                "end": parse_iso(row["end_utc"]),
+                "type": row["attack_type"].strip(),
+                "count": int(row.get("container_count", 0)),
+                "subnet": row.get("target_subnet", "").strip(),
+            })
+    return campaigns
+
+
+def is_in_campaign(ts: datetime, campaigns: list) -> tuple:
+    """Check if a timestamp falls within any campaign window.
+    Returns (campaign_type, campaign_id) or (None, None)."""
+    ts_ts = ts.timestamp()
+    for c in campaigns:
+        if c["start"].timestamp() <= ts_ts <= c["end"].timestamp():
+            return (c["type"], c["id"])
+    return (None, None)
+
+
+SCAN_RULE_KEYWORDS = ["scan", "nmap", "portscan", "syn", "fingerprint"]
+
+
+def is_alert_scan(alert: dict) -> bool:
+    """Check if an alert is scan-related by rule description."""
+    desc = alert.get("rule", {}).get("description", "")
+    desc_lower = desc.lower()
+    return any(kw in desc_lower for kw in SCAN_RULE_KEYWORDS)
+
+
+def extract_srcip(alert: dict) -> str:
+    """Extract source IP from alert."""
+    for field in ["srcip", "src_ip", "data.srcip"]:
+        parts = field.split(".")
+        val = alert
+        for p in parts:
+            if isinstance(val, dict):
+                val = val.get(p, "")
+            else:
+                break
+        if val:
+            return str(val)
+    return ""
+
+
+def extract_features(alert: dict) -> dict:
+    """Extract feature fields from alert."""
+    r = alert.get("rule", {})
+    a = alert.get("agent", {})
+    d = alert.get("data", {})
+    return {
+        "timestamp": alert.get("timestamp", ""),
+        "rule_id": r.get("id", ""),
+        "rule_level": r.get("level", 0),
+        "rule_groups": json.dumps(r.get("groups", [])),
+        "rule_description": r.get("description", ""),
+        "agent_id": a.get("id", ""),
+        "agent_name": a.get("name", ""),
+        "srcip": d.get("srcip", ""),
+        "dstuser": d.get("dstuser", ""),
+        "location": alert.get("location", ""),
+        "full_log": (alert.get("full_log", "") or "")[:200],
+    }
+
+
+def label_dataset(alerts_path: str, campaigns: list, output_path: str):
+    """Label all alerts and write labeled CSV."""
+    print("--- Labeling ---")
+
+    labeled = []
+    total = 0
+    for line in open(alerts_path):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            alert = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        total += 1
+
+        # Parse timestamp
+        try:
+            ts_str = alert.get("timestamp", "")
+            ts = parse_iso(ts_str)
+        except (ValueError, TypeError):
+            continue
+
+        # Check campaign
+        camp_type, camp_id = is_in_campaign(ts, campaigns)
+        is_scan = is_alert_scan(alert)
+
+        # Label logic:
+        # - If alert is within a campaign window (any) → label = 0 (benign background)
+        # - If alert is within malicious window AND is scan → label = 1 (True Positive)
+        # - If alert is outside any window → label = 0 (False Positive candidate)
+        if camp_id:
+            if camp_type == "malicious_nmap_hydra" and is_scan:
+                label = 1  # True Positive: malicious campaign + scan alert
+            else:
+                label = 0  # Benign background traffic
+        else:
+            label = 0  # Outside campaign = normal traffic
+
+        features = extract_features(alert)
+        features["label"] = label
+        features["campaign_id"] = camp_id or ""
+        features["campaign_type"] = camp_type or ""
+        features["is_scan"] = 1 if is_scan else 0
+        labeled.append(features)
+
+    # Write CSV
+    with open(output_path, "w", newline="") as f:
+        if labeled:
+            writer = csv.DictWriter(f, fieldnames=labeled[0].keys())
+            writer.writeheader()
+            writer.writerows(labeled)
+        else:
+            f.write("label\n")
+
+    # Stats
+    tp = sum(1 for l in labeled if l["label"] == 1)
+    fp = sum(1 for l in labeled if l["label"] == 0)
+    total_labeled = len(labeled)
+
+    print(f"\n  Dataset:       {total_labeled} rows / {total} total alerts")
+    print(f"  True Positive: {tp} ({tp/total_labeled*100:.1f}%)" if total_labeled > 0 else "  True Positive: 0")
+    print(f"  False Positive:{fp} ({fp/total_labeled*100:.1f}%)" if total_labeled > 0 else "  False Positive: 0")
+    print(f"  Output:        {output_path}")
+    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+    print(f"  Size:          {size_mb:.1f} MB")
+
+    # Sample
+    if labeled:
+        print("\n--- Sample TP ---")
+        for l in labeled:
+            if l["label"] == 1:
+                print(f"  [{l['timestamp']}] Rule {l['rule_id']}: {l['rule_description'][:60]}")
+                print(f"  SrcIP: {l['srcip']} | Agent: {l['agent_name']}")
+                break
+
+        print("\n--- Sample FP ---")
+        for l in labeled:
+            if l["label"] == 0:
+                print(f"  [{l['timestamp']}] Rule {l['rule_id']}: {l['rule_description'][:60]}")
+                print(f"  SrcIP: {l['srcip']} | Agent: {l['agent_name']}")
+                break
+
+    return labeled
 
 
 def main():
-    print("02_label_dataset.py - not yet implemented")
-    print("This script will:")
-    print("  1. Load raw alerts from data/raw_alerts/")
-    print("  2. Load attack windows from data/attack_windows/")
-    print("  3. Load the attack type mapping from config/attack_mapping.yaml")
-    print("  4. For each alert: check if it falls in an attack window with")
-    print("     matching rule type, then assign label 1 or 0")
-    print("  5. Save the labeled dataset to data/labeled/labeled_dataset.csv")
+    parser = argparse.ArgumentParser(description="Label Wazuh alerts using campaign CSV")
+    parser.add_argument("--alerts", default="/tmp/alerts_20260713_193152.jsonl",
+                        help="Path to alerts JSONL file")
+    parser.add_argument("--campaign", default="/tmp/CAMP_DOCKER_20260713_204420.csv",
+                        help="Path to campaign CSV file")
+    parser.add_argument("--output", default="",
+                        help="Output labeled CSV path")
+    args = parser.parse_args()
+
+    output = args.output or args.alerts.replace(".jsonl", "_labeled.csv")
+
+    print("═══════════════════════════════════════════════════════════")
+    print(" DATASET LABELER — 02_label_dataset.py")
+    print("═══════════════════════════════════════════════════════════")
+    print(f"  Alerts:   {args.alerts}")
+    print(f"  Campaign: {args.campaign}")
+    print(f"  Output:   {output}")
+    print("")
+
+    # Load campaigns
+    print("--- Loading campaigns ---")
+    campaigns = load_campaigns(args.campaign)
+    print(f"  {len(campaigns)} campaign window(s)")
+    for c in campaigns:
+        print(f"    {c['id']}: {c['type']} ({c['start']} → {c['end']})")
+
+    # Label
+    label_dataset(args.alerts, campaigns, output)
+
+    print("\n═══════════════════════════════════════════════════════════")
+    print(" Done. Next: python3 pipeline/03_feature_engineering.py")
+    print("═══════════════════════════════════════════════════════════")
 
 
 if __name__ == "__main__":
