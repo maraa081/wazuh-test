@@ -7,9 +7,9 @@ from collections import Counter
 path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/alerts_20260713_193152.jsonl"
 camp_path = sys.argv[2] if len(sys.argv) > 2 else "/tmp/CAMP_DOCKER_20260713_204420.csv"
 
-print("══════════════════════════════════════════════════")
+print("==================================")
 print(" DATASET QUALITY CHECK")
-print("══════════════════════════════════════════════════")
+print("==================================")
 
 # Load alerts
 alerts = []
@@ -62,10 +62,10 @@ for a in alerts:
     if ip: src_ips.add(ip)
 print(f"\n🌐 Unique source IPs: {len(src_ips)}")
 
-# ─── Quality assessment ───
-print(f"\n══════════════════════════════════════════════════")
+# --- Quality assessment ---
+print(f"\n==================================")
 print(" QUALITY ASSESSMENT")
-print("══════════════════════════════════════════════════")
+print("==================================")
 
 n_rules = len(rules)
 n_tp_rules = sum(1 for (rid,_),_ in rules.most_common() if rid in ["1000001","1000002","1000003","1000004","1000005","1000006"])

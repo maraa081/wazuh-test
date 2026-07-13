@@ -202,9 +202,9 @@ def main():
 
     output = args.output or args.alerts.replace(".jsonl", "_labeled.csv")
 
-    print("═══════════════════════════════════════════════════════════")
+    print("=========================================")
     print(" DATASET LABELER — 02_label_dataset.py")
-    print("═══════════════════════════════════════════════════════════")
+    print("=========================================")
     print(f"  Alerts:   {args.alerts}")
     print(f"  Campaign: {args.campaign}")
     print(f"  Output:   {output}")
@@ -220,9 +220,9 @@ def main():
     # Label
     label_dataset(args.alerts, campaigns, output)
 
-    print("\n═══════════════════════════════════════════════════════════")
+    print("\n=========================================")
     print(" Done. Next: python3 pipeline/03_feature_engineering.py")
-    print("═══════════════════════════════════════════════════════════")
+    print("=========================================")
 
 
 if __name__ == "__main__":
