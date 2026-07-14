@@ -36,7 +36,7 @@ echo ""
 # ================ Gateway OpenClaw ================
 echo "[Gateway OpenClaw]"
 
-GW_SVC=$(systemctl is-active openclaw-gateway 2>/dev/null)
+GW_SVC=$(systemctl --user is-active openclaw-gateway 2>/dev/null)
 [ "$GW_SVC" = "active" ]
 check "Service Gateway" $? "$GW_SVC"
 
@@ -80,7 +80,8 @@ API_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9090/health
 [ "$API_HEALTH" = "200" ]
 check "API ML repond (HTTP $API_HEALTH)" $? "Status: $API_HEALTH"
 
-MODEL_LOADED=$(curl -s http://127.0.0.1:9090/model/status 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('model_loaded','false'))" 2>/dev/null)
+# Check model via inference service logs (API n'a pas d'endpoint /model/status)
+MODEL_LOADED=$(sudo journalctl -u wazuh-inference --since "5 min ago" --no-pager 2>/dev/null | grep -q "Model loaded" && echo "true" || echo "unknown")
 [ "$MODEL_LOADED" = "true" ]
 check "Modele charge" $? "$MODEL_LOADED"
 

@@ -132,12 +132,12 @@ def label_dataset(alerts_path: str, campaigns: list, output_path: str):
         is_scan = is_alert_scan(alert)
 
         # Label logic:
-        # - If alert is within a campaign window (any) → label = 0 (benign background)
-        # - If alert is within malicious window AND is scan → label = 1 (True Positive)
-        # - If alert is outside any window → label = 0 (False Positive candidate)
+        # - If alert is within a malicious_* campaign → label = 1 (True Positive)
+        # - If alert is within a benign_* campaign → label = 0 (benign background)
+        # - If alert is outside any window → label = 0
         if camp_id:
-            if camp_type == "malicious_nmap_hydra" and is_scan:
-                label = 1  # True Positive: malicious campaign + scan alert
+            if camp_type.startswith("malicious_"):
+                label = 1  # True Positive: alert during malicious campaign
             else:
                 label = 0  # Benign background traffic
         else:
