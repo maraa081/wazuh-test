@@ -279,16 +279,24 @@ def watch_alerts(alert_path, model, feature_extractor, db_path,
     """Monitor alerts.json for new lines and run inference."""
     conn = sqlite3.connect(db_path)
 
-    # Pre-populate buffer from existing DB for accurate frequency features
+    # Pre-populate buffer from alerts.json (ALL alerts, not just Suricata)
     try:
-        existing = conn.execute("SELECT features_json, timestamp, rule_id FROM predictions ORDER BY timestamp ASC").fetchall()
-        for feat_json, ts, rid in existing:
-            try:
-                feat = json.loads(feat_json)
-                ts_num = float(datetime.fromisoformat(ts.replace("Z","+00:00")).timestamp())
-                feature_extractor.buffer.append((ts_num, rid, feat.get("srcip","")))
-            except: pass
-        print(f"[WATCH] Pre-populated buffer: {len(existing)} alerts")
+        buf_count = 0
+        with open(alert_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line: continue
+                try:
+                    d = json.loads(line)
+                    ts_raw = d.get("timestamp", "")
+                    rid = d.get("rule", {}).get("id", "")
+                    srcip = d.get("data", {}).get("srcip", "")
+                    ts_parsed = datetime.fromisoformat(ts_raw.replace("Z","+00:00")).timestamp()
+                    feature_extractor.buffer.append((ts_parsed, rid, srcip))
+                    buf_count += 1
+                except:
+                    pass
+        print(f"[WATCH] Pre-populated buffer: {buf_count} alerts from alerts.json")
     except Exception as e:
         print(f"[WATCH] Buffer pre-population skipped: {e}")
 
