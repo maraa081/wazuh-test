@@ -1,0 +1,287 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wazuh AI Filter — Diagramme d'architecture</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f8fafc;
+    --fg: #172033;
+    --muted: #5b6475;
+    --line: #64748b;
+    --neutral: #e2e8f0;
+    --input: #bfdbfe;
+    --process: #c7d2fe;
+    --storage: #99f6e4;
+    --external: #fde68a;
+    --risk: #fecaca;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f172a;
+      --fg: #e5e7eb;
+      --muted: #a3adbd;
+      --line: #94a3b8;
+      --neutral: #334155;
+      --input: #1d4ed8;
+      --process: #4338ca;
+      --storage: #0f766e;
+      --external: #92400e;
+      --risk: #991b1b;
+    }
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  main { max-width: 1100px; margin: 32px auto; padding: 0 20px; }
+  svg { width: 100%; height: auto; display: block; }
+  .title { font-size: 20px; font-weight: 650; fill: var(--fg); }
+  .label { font-size: 14px; font-weight: 600; fill: var(--fg); }
+  .small { font-size: 12px; fill: var(--muted); }
+  .node { stroke: var(--line); stroke-width: 1; }
+  .neutral { fill: var(--neutral); }
+  .input { fill: var(--input); }
+  .process { fill: var(--process); }
+  .storage { fill: var(--storage); }
+  .storage2 { fill: #d8b4fe; }
+  .external { fill: var(--external); }
+  .risk { fill: var(--risk); }
+  .edge { stroke: var(--line); stroke-width: 1.5; fill: none; }
+  .edge-dash { stroke: var(--line); stroke-width: 1.5; fill: none; stroke-dasharray: 6 4; }
+  .zone { fill: none; stroke: var(--line); stroke-width: 1; stroke-dasharray: 6 5; opacity: 0.8; }
+  h2 { margin-top: 32px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  h3 { margin-top: 24px; }
+  code { background: var(--neutral); padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+  .cmd { background: var(--neutral); padding: 8px 12px; border-radius: 5px; font-family: monospace; display: inline-block; margin: 4px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
+  th { background: var(--neutral); }
+  .step { margin: 16px 0; padding: 12px 16px; border-left: 4px solid var(--process); background: color-mix(in srgb, var(--process) 15%, transparent); border-radius: 0 6px 6px 0; }
+  .step .num { font-weight: 700; font-size: 16px; }
+</style>
+<main>
+
+  <svg viewBox="0 0 1000 720" xmlns="http://www.w3.org/2000/svg">
+    <text x="20" y="32" class="title">Wazuh AI Filter — Architecture</text>
+    <text x="20" y="52" class="small">Pipeline complet : Attaque → Détection → ML → Dashboard</text>
+
+    <!-- Zones -->
+    <rect x="15" y="65" width="320" height="640" class="zone" rx="8"/>
+    <text x="30" y="85" class="small"> Manager (192.168.30.3)</text>
+
+    <rect x="350" y="65" width="310" height="640" class="zone" rx="8"/>
+    <text x="365" y="85" class="small"> Target (192.168.30.10)</text>
+
+    <rect x="680" y="65" width="300" height="640" class="zone" rx="8"/>
+    <text x="695" y="85" class="small"> ParrotOS (192.168.30.9)</text>
+
+    <!-- === Flèches de flux principales === -->
+
+    <!-- ParrotOS → Target (attaque) -->
+    <path d="M 830 150 L 500 150" class="edge" marker-end="url(#arrow)"/>
+    <text x="630" y="140" class="small" text-anchor="middle">① Attaque (nmap, hydra, hping3)</text>
+
+    <!-- Suricata eve.json -->
+    <rect x="380" y="180" width="250" height="50" class="node process" rx="6"/>
+    <text x="505" y="205" class="label" text-anchor="middle">Suricata IDS (af-packet)</text>
+    <text x="505" y="220" class="small" text-anchor="middle">Détecte les paquets attaquants</text>
+
+    <!-- Suricata → alerts.json -->
+    <path d="M 505 230 L 505 280" class="edge" marker-end="url(#arrow)"/>
+    <text x="515" y="260" class="small">eve.json</text>
+
+    <rect x="380" y="280" width="250" height="50" class="node process" rx="6"/>
+    <text x="505" y="305" class="label" text-anchor="middle">Wazuh Agent</text>
+    <text x="505" y="320" class="small" text-anchor="middle">Remonte les alertes au Manager</text>
+
+    <!-- Wazuh Agent → Manager via réseau -->
+    <path d="M 380 320 L 335 320" class="edge" marker-end="url(#arrow)"/>
+
+    <!-- Manager flux -->
+    <rect x="45" y="180" width="270" height="50" class="node process" rx="6"/>
+    <text x="180" y="205" class="label" text-anchor="middle">Wazuh Manager</text>
+    <text x="180" y="220" class="small" text-anchor="middle">Reçoit et indexe les alertes</text>
+
+    <path d="M 180 230 L 180 280" class="edge" marker-end="url(#arrow)"/>
+
+    <rect x="45" y="280" width="270" height="50" class="node storage" rx="6"/>
+    <text x="180" y="305" class="label" text-anchor="middle">alerts.json</text>
+    <text x="180" y="320" class="small" text-anchor="middle">Fichier d'alertes Wazuh (57000+ lignes)</text>
+
+    <!-- alerts.json → ML Inference -->
+    <path d="M 180 330 L 180 380" class="edge" marker-end="url(#arrow)"/>
+
+    <rect x="45" y="380" width="270" height="55" class="node process" rx="6"/>
+    <text x="180" y="402" class="label" text-anchor="middle">ML Inference Service</text>
+    <text x="180" y="418" class="small" text-anchor="middle">XGBoost → prédit TP/FP en temps réel</text>
+
+    <!-- ML → SQLite -->
+    <path d="M 180 435 L 180 480" class="edge" marker-end="url(#arrow)"/>
+
+    <rect x="45" y="480" width="270" height="50" class="node storage2" rx="6"/>
+    <text x="180" y="505" class="label" text-anchor="middle">predictions.db (SQLite)</text>
+    <text x="180" y="520" class="small" text-anchor="middle">64000+ prédictions stockées</text>
+
+    <!-- SQLite → API -->
+    <path d="M 120 505 L 80 505" class="edge" marker-end="url(#arrow)"/>
+
+    <rect x="45" y="555" width="120" height="45" class="node process" rx="6"/>
+    <text x="105" y="575" class="label" text-anchor="middle">ML API</text>
+    <text x="105" y="590" class="small" text-anchor="middle">:9090</text>
+
+    <!-- API → sync -->
+    <path d="M 165 578 L 220 578" class="edge" marker-end="url(#arrow)"/>
+
+    <rect x="220" y="555" width="120" height="45" class="node process" rx="6"/>
+    <text x="280" y="575" class="label" text-anchor="middle">Sync OpenSearch</text>
+    <text x="280" y="590" class="small" text-anchor="middle">Toutes les 30s</text>
+
+    <!-- Dashboard zone -->
+    <rect x="45" y="630" width="900" height="60" class="zone" rx="8"/>
+    <text x="60" y="650" class="small"> Windows (192.168.30.1) — Dashboard</text>
+
+    <path d="M 280 600 L 280 645" class="edge" marker-end="url(#arrow)"/>
+
+    <!-- Légende -->
+    <g transform="translate(700, 480)">
+      <text x="0" y="0" class="label">Légende</text>
+      <rect x="0" y="10" width="16" height="16" class="node process" rx="2"/>
+      <text x="22" y="23" class="small">Service / Traitement</text>
+      <rect x="0" y="32" width="16" height="16" class="node storage" rx="2"/>
+      <text x="22" y="45" class="small">Stockage fichier</text>
+      <rect x="0" y="54" width="16" height="16" class="node storage2" rx="2"/>
+      <text x="22" y="67" class="small">Base de données</text>
+      <rect x="0" y="76" width="16" height="16" class="node external" rx="2"/>
+      <text x="22" y="89" class="small">Machine externe</text>
+    </g>
+
+    <!-- Arrow marker -->
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 Z" fill="var(--line)"/>
+      </marker>
+    </defs>
+  </svg>
+
+  <h2>📋 Résumé pour ton collègue</h2>
+
+  <table>
+    <tr><th>Étape</th><th>Ce qui se passe</th><th>Où</th></tr>
+    <tr>
+      <td><strong>① Attaque</strong></td>
+      <td>ParrotOS lance nmap, hydra, hping3 vers la Target</td>
+      <td><code>192.168.30.9 → 192.168.30.10</code></td>
+    </tr>
+    <tr>
+      <td><strong>② Détection</strong></td>
+      <td>Suricata capture les paquets via af-packet et génère des alertes</td>
+      <td><code>/var/log/suricata/eve.json</code></td>
+    </tr>
+    <tr>
+      <td><strong>③ Remontée</strong></td>
+      <td>Wazuh Agent lit eve.json, envoie les alertes au Manager</td>
+      <td><code>1514/udp → Manager</code></td>
+    </tr>
+    <tr>
+      <td><strong>④ Stockage</strong></td>
+      <td>Wazuh Manager écrit les alertes dans <code>alerts.json</code></td>
+      <td><code>/var/ossec/logs/alerts/alerts.json</code></td>
+    </tr>
+    <tr>
+      <td><strong>⑤ Inférence ML</strong></td>
+      <td><code>wazuh-inference</code> surveille les nouvelles lignes, extrait les features, scores avec XGBoost</td>
+      <td><code>:9090 (API)</code></td>
+    </tr>
+    <tr>
+      <td><strong>⑥ Stockage prédictions</strong></td>
+      <td>Résultat stocké dans SQLite (<code>/tmp/predictions.db</code>)</td>
+      <td><code>64 000+ prédictions</code></td>
+    </tr>
+    <tr>
+      <td><strong>⑦ Sync Dashboard</strong></td>
+      <td><code>wazuh-ml-sync</code> pousse les prédictions vers OpenSearch toutes les 30s</td>
+      <td><code>index: wazuh-ml-predictions</code></td>
+    </tr>
+    <tr>
+      <td><strong>⑧ Visualisation</strong></td>
+      <td>Dashboards Wazuh : pie chart TP/FP + courbe cumulée en temps réel</td>
+      <td><code>https://192.168.30.3:443</code></td>
+    </tr>
+  </table>
+
+  <h2>🎯 Pipeline ML (5 étapes)</h2>
+
+  <div class="step">
+    <span class="num">01_collect_alerts.py</span> — Collecte les alertes depuis <code>alerts.json</code> au format JSONL<br/>
+    <span class="cmd">python3 pipeline/01_collect_alerts.py --days 1</span>
+  </div>
+
+  <div class="step">
+    <span class="num">02_label_dataset.py</span> — Labellise les alertes en TP/FP à partir des fenêtres de campagne (ParrotOS + Docker)<br/>
+    <span class="cmd">python3 pipeline/02_label_dataset.py --alerts alerts.jsonl --campaign campaign.csv</span>
+  </div>
+
+  <div class="step">
+    <span class="num">03_feature_engineering.py</span> — Extrait 36 features (temporelles, fréquence, IP, one-hot rules)<br/>
+    <span class="cmd">python3 pipeline/03_feature_engineering.py --input dataset_labeled.csv</span>
+  </div>
+
+  <div class="step">
+    <span class="num">04_train_model.py</span> — Entraîne XGBoost avec scale_pos_weight, early stopping<br/>
+    <span class="cmd">python3 pipeline/04_train_model.py --input features.csv</span>
+  </div>
+
+  <div class="step">
+    <span class="num">05_evaluate_model.py</span> — Évalue avec SHAP, courbes, threshold tuning<br/>
+    <span class="cmd">python3 pipeline/05_evaluate_model.py --input features.csv --model model.json</span>
+  </div>
+
+  <h2>📊 Performances du modèle</h2>
+
+  <table>
+    <tr><th>Métrique</th><th>Valeur</th><th>Objectif</th></tr>
+    <tr><td><strong>Recall</strong></td><td>96.3%</td><td>✅ &gt; 95%</td></tr>
+    <tr><td><strong>F2-score</strong></td><td>91.6%</td><td>✅ &gt; 90%</td></tr>
+    <tr><td><strong>ROC AUC</strong></td><td>99.9%</td><td>✅ &gt; 95%</td></tr>
+    <tr><td><strong>Precision</strong></td><td>76.5%</td><td>🔶 &gt; 80% (à améliorer)</td></tr>
+    <tr><td><strong>Best threshold</strong></td><td>0.826</td><td>Optimal F2</td></tr>
+    <tr><td><strong>Données d'entraînement</strong></td><td>107 TP / 3000 FP</td><td>3.4% TP</td></tr>
+  </table>
+
+  <h2>🔧 Commandes utiles</h2>
+
+  <table>
+    <tr><th>Action</th><th>Commande</th></tr>
+    <tr><td>Healthcheck complet</td><td><code>bash ~/wazuh-test/scripts/lab-healthcheck.sh</code></td></tr>
+    <tr><td>Lancer une attaque (ParrotOS)</td><td><code>bash ~/wazuh-test/scripts/attack-from-parrot.sh 120</code></td></tr>
+    <tr><td>Lancer le pipeline ML complet</td><td><code>python3 ~/wazuh-test/run_pipeline.py --all</code></td></tr>
+    <tr><td>Voir les stats en direct</td><td><code>curl http://127.0.0.1:9090/stats</code></td></tr>
+    <tr><td>Voir les prédictions</td><td><code>curl http://127.0.0.1:9090/predictions/recent?limit=10</code></td></tr>
+    <tr><td>Dashboard Wazuh</td><td><code>https://192.168.30.3:443</code></td></tr>
+    <tr><td>Dashboard ML</td><td><code>https://192.168.30.3/app/dashboards</code> → ML Predictions Dashboard</td></tr>
+  </table>
+
+  <h2>🏗️ Services systemd</h2>
+
+  <table>
+    <tr><th>Service</th><th>Rôle</th><th>Statut</th></tr>
+    <tr><td><code>wazuh-inference</code></td><td>Inference ML temps réel (XGBoost)</td><td>✅ active</td></tr>
+    <tr><td><code>wazuh-api</code></td><td>API REST :9090</td><td>✅ active</td></tr>
+    <tr><td><code>wazuh-ml-sync</code></td><td>Sync SQLite → OpenSearch</td><td>✅ active</td></tr>
+    <tr><td><code>openclaw-gateway</code></td><td>Gateway OpenClaw (user service)</td><td>✅ active</td></tr>
+  </table>
+
+  <h2>🌐 Accès réseau</h2>
+
+  <table>
+    <tr><th>Machine</th><th>IP</th><th>Rôle</th></tr>
+    <tr><td><strong>Manager</strong></td><td>192.168.30.3</td><td>Wazuh Manager + ML + Gateway OpenClaw</td></tr>
+    <tr><td><strong>Target</strong></td><td>192.168.30.10</td><td>Suricata + Wazuh Agent + Docker</td></tr>
+    <tr><td><strong>ParrotOS</strong></td><td>192.168.30.9</td><td>Machine d'attaque (nmap, hydra, hping3)</td></tr>
+    <tr><td><strong>Windows</strong></td><td>192.168.30.1</td><td>Admin — Dashboard Wazuh</td></tr>
+  </table>
+
+</main>
