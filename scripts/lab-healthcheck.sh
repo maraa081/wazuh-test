@@ -1,123 +1,111 @@
 #!/bin/bash
-# lab-healthcheck.sh — Verification rapide de l'etat du labo
+# lab-healthcheck.sh — Verification rapide du labo
+# Execute SUR LE MANAGER, verifie la Target via SSH
 # ============================================================
-# Verifie que les deux noeuds OpenClaw sont accessibles
-# et que les services critiques tournent.
 
-NODE_MANAGER="manager-wazuh"
-NODE_TARGET="target-suricata"
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 PASS=0
 FAIL=0
-
-green() { echo -e "\e[32m$1\e[0m"; }
-red()   { echo -e "\e[31m$1\e[0m"; }
+WARN=0
 
 check() {
   local desc=$1
-  local result=$2
-  if [ "$result" = "OK" ]; then
-    green "  [OK] $desc"
+  if [ $2 -eq 0 ]; then
+    echo -e "  ${GREEN}[OK]${NC} $desc"
     PASS=$((PASS+1))
   else
-    red "  [FAIL] $desc — $result"
+    echo -e "  ${RED}[FAIL]${NC} $desc — $3"
     FAIL=$((FAIL+1))
   fi
 }
 
+warn() {
+  echo -e "  ${YELLOW}[WARN]${NC} $1 — $2"
+  WARN=$((WARN+1))
+}
+
 echo "========================================="
-echo "   LAB HEALTHCHECK — $(date +%Y-%m-%d\ %H:%M)"
+echo "   LAB HEALTHCHECK — $(date '+%Y-%m-%d %H:%M')"
+echo "   Host : $(hostname) ($(hostname -I | awk '{print $1}'))"
 echo "========================================="
 echo ""
 
-# --- Noeuds OpenClaw ---
-echo "[Noeuds OpenClaw]"
+# ================ Gateway OpenClaw ================
+echo "[Gateway OpenClaw]"
 
-NODES_LIST=$(openclaw nodes list --connected 2>&1)
-echo "$NODES_LIST" | grep -q "manager-wazuh"
-check "Manager connecte" "$([ $? -eq 0 ] && echo OK || echo INTROUVABLE)"
+GW_SVC=$(systemctl is-active openclaw-gateway 2>/dev/null)
+[ "$GW_SVC" = "active" ]
+check "Service Gateway" $? "$GW_SVC"
 
-echo "$NODES_LIST" | grep -q "target-suricata"
-check "Target connectee" "$([ $? -eq 0 ] && echo OK || echo INTROUVABLE)"
+GW_PORT=$(ss -tlnp | grep 18789 | head -1)
+[ -n "$GW_PORT" ]
+check "Port 18789" $? "Pas d'ecoute"
 
-# --- Manager : services systemd ---
-echo "[Manager — Services]"
+# ================ Target (SSH) ================
+echo "[Target — via SSH]"
 
-SVC_INF=$(openclaw nodes invoke --node "$NODE_MANAGER" --command "system.run" \
-  --params '{"command":"systemctl is-active wazuh-inference"}' 2>&1)
-echo "$SVC_INF" | grep -q "active"
-check "ML Inference" "$([ $? -eq 0 ] && echo OK || echo "$SVC_INF")"
+HOSTNAME_TGT=$(ssh -o ConnectTimeout=3 target "hostname" 2>/dev/null)
+check "SSH joignable" $? "ssh: connexion echouee"
 
-SVC_API=$(openclaw nodes invoke --node "$NODE_MANAGER" --command "system.run" \
-  --params '{"command":"systemctl is-active wazuh-api"}' 2>&1)
-echo "$SVC_API" | grep -q "active"
-check "ML API" "$([ $? -eq 0 ] && echo OK || echo "$SVC_API")"
+[ -n "$HOSTNAME_TGT" ]
+check "Hostname = $HOSTNAME_TGT" $?
 
-SVC_WAZUH=$(openclaw nodes invoke --node "$NODE_MANAGER" --command "system.run" \
-  --params '{"command":"systemctl is-active wazuh-manager"}' 2>&1)
-echo "$SVC_WAZUH" | grep -q "active"
-check "Wazuh Manager" "$([ $? -eq 0 ] && echo OK || echo "$SVC_WAZUH")"
+SURICATA=$(ssh target "sudo systemctl is-active suricata" 2>/dev/null)
+[ "$SURICATA" = "active" ]
+check "Suricata" $? "$SURICATA"
 
-# --- Manager : API ML ---
-echo "[Manager — API ML]"
+DOCKER=$(ssh target "sudo docker info --format '{{.ServerVersion}}'" 2>/dev/null)
+[ -n "$DOCKER" ]
+check "Docker v$DOCKER" $? "Docker inaccessible"
 
-API_HEALTH=$(openclaw nodes invoke --node "$NODE_MANAGER" --command "system.run" \
-  --params '{"command":"curl -s -o /dev/null -w \\"%{http_code}\\" http://127.0.0.1:9090/health"}' 2>&1)
-echo "$API_HEALTH" | grep -q "200"
-check "Endpoint /health" "$([ $? -eq 0 ] && echo OK || echo "HTTP $API_HEALTH")"
+WAZUH_AGENT=$(ssh target "sudo systemctl is-active wazuh-agent" 2>/dev/null)
+[ "$WAZUH_AGENT" = "active" ]
+check "Wazuh Agent" $? "$WAZUH_AGENT"
 
-API_MODEL=$(openclaw nodes invoke --node "$NODE_MANAGER" --command "system.run" \
-  --params '{"command":"curl -s http://127.0.0.1:9090/model/status | python3 -c \\\"import sys,json; d=json.load(sys.stdin); print(d.get('model_loaded','unknown'))\\\""}' 2>&1)
-echo "$API_MODEL" | grep -q "true"
-check "Modele charge" "$([ $? -eq 0 ] && echo OK || echo "$API_MODEL")"
+# ================ ML Pipeline ================
+echo "[ML Pipeline]"
 
-# --- Target : services ---
-echo "[Target — Services]"
+INF_SVC=$(systemctl is-active wazuh-inference 2>/dev/null)
+[ "$INF_SVC" = "active" ]
+check "Inference Service" $? "$INF_SVC"
 
-SVC_SURICATA=$(openclaw nodes invoke --node "$NODE_TARGET" --command "system.run" \
-  --params '{"command":"systemctl is-active suricata"}' 2>&1)
-echo "$SVC_SURICATA" | grep -q "active"
-check "Suricata" "$([ $? -eq 0 ] && echo OK || echo "$SVC_SURICATA")"
+API_SVC=$(systemctl is-active wazuh-api 2>/dev/null)
+[ "$API_SVC" = "active" ]
+check "API Service" $? "$API_SVC"
 
-SVC_AGENT=$(openclaw nodes invoke --node "$NODE_TARGET" --command "system.run" \
-  --params '{"command":"systemctl is-active wazuh-agent"}' 2>&1)
-echo "$SVC_AGENT" | grep -q "active"
-check "Wazuh Agent" "$([ $? -eq 0 ] && echo OK || echo "$SVC_AGENT")"
+API_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9090/health 2>/dev/null)
+[ "$API_HEALTH" = "200" ]
+check "API ML repond (HTTP $API_HEALTH)" $? "Status: $API_HEALTH"
 
-DOCKER_OK=$(openclaw nodes invoke --node "$NODE_TARGET" --command "system.run" \
-  --params '{"command":"sudo docker info --format \\"{{.ServerVersion}}\\" 2>/dev/null || echo NO_DOCKER"}' 2>&1)
-echo "$DOCKER_OK" | grep -qv "NO_DOCKER"
-check "Docker" "$([ $? -eq 0 ] && echo OK || echo "$DOCKER_OK")"
+MODEL_LOADED=$(curl -s http://127.0.0.1:9090/model/status 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('model_loaded','false'))" 2>/dev/null)
+[ "$MODEL_LOADED" = "true" ]
+check "Modele charge" $? "$MODEL_LOADED"
 
-# --- Securite ---
-echo "[Securite — UFW]"
+# ================ Securite ================
+echo "[Securite]"
 
-UFW_MGR=$(openclaw nodes invoke --node "$NODE_MANAGER" --command "system.run" \
-  --params '{"command":"sudo ufw status | head -3"}' 2>&1)
-echo "$UFW_MGR" | grep -q "active"
-check "UFW actif sur Manager" "$([ $? -eq 0 ] && echo OK || echo "$UFW_MGR")"
+UFW_ACTIVE=$(sudo ufw status 2>/dev/null | head -1)
+echo "$UFW_ACTIVE" | grep -qi "active"
+check "UFW actif" $? "$UFW_ACTIVE"
 
-UFW_TGT=$(openclaw nodes invoke --node "$NODE_TARGET" --command "system.run" \
-  --params '{"command":"sudo ufw status | head -3"}' 2>&1)
-echo "$UFW_TGT" | grep -q "active"
-check "UFW actif sur Target" "$([ $? -eq 0 ] && echo OK || echo "$UFW_TGT")"
+UFW_18789=$(sudo ufw status 2>/dev/null | grep "18789" | grep "192.168.30.1")
+[ -n "$UFW_18789" ]
+check "UI reservee a 192.168.30.1" $? "Regle manquante"
 
-# --- Tests de communication ---
-echo "[Communication inter-VMs]"
+# ================ Wazuh ================
+echo "[Wazuh]"
 
-PING_MT=$(openclaw nodes invoke --node "$NODE_MANAGER" --command "system.run" \
-  --params '{"command":"ping -c 1 -W 2 192.168.30.10 >/dev/null 2>&1 && echo OK || echo FAIL"}' 2>&1)
-echo "$PING_MT" | grep -q "OK"
-check "Manager -> Target" "$([ $? -eq 0 ] && echo OK || echo "$PING_MT")"
+WAZUH_MGR=$(systemctl is-active wazuh-manager 2>/dev/null)
+[ "$WAZUH_MGR" = "active" ]
+check "Wazuh Manager" $? "$WAZUH_MGR"
 
-PING_TM=$(openclaw nodes invoke --node "$NODE_TARGET" --command "system.run" \
-  --params '{"command":"ping -c 1 -W 2 192.168.30.3 >/dev/null 2>&1 && echo OK || echo FAIL"}' 2>&1)
-echo "$PING_TM" | grep -q "OK"
-check "Target -> Manager" "$([ $? -eq 0 ] && echo OK || echo "$PING_TM")"
-
-# --- Bilan ---
+# ================ Bilan ================
 echo ""
 echo "========================================="
-echo "   BILAN : $PASS OK / $FAIL FAIL"
+echo "   BILAN : $PASS OK / $FAIL FAIL / $WARN WARN"
 echo "========================================="
 
 exit $FAIL

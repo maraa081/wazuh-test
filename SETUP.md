@@ -1,353 +1,549 @@
-# SETUP — Labo Wazuh AI Filter : déploiement des nœuds OpenClaw
+# SETUP — Labo Wazuh AI Filter : Gateway Manager + SSH Target
 
-> Version : 1.0 — Date : 2026-07-14  
-> Architecture validée : **Plan A — Gateway unique (WSL) + 2 Node Hosts (Manager, Target)**  
+> Version : 2.0 — Date : 2026-07-14  
+> Architecture validee : **Option X — 1 Gateway (Manager) + Cles SSH (Target)**  
 > Ce fichier est le blueprint unique d'installation. Suivre dans l'ordre.
 
 ---
 
-## Table des matières
+## Table des matieres
 
-1. [Présentation de l'architecture](#1-présentation-de-larchitecture)
-2. [Prérequis réseau et machines](#2-prérequis-réseau-et-machines)
-3. [Sécurité : segmentation et UFW](#3-sécurité--segmentation-et-ufw)
-4. [Configuration Windows (Portproxy + Firewall)](#4-configuration-windows-portproxy--firewall)
-5. [Installation du Manager (Ubuntu 24.04 — 192.168.30.3)](#5-installation-du-manager-ubuntu-2404--192168303)
-6. [Installation de la Target (Ubuntu 22.04 — 192.168.30.10)](#6-installation-de-la-target-ubuntu-2204--1921683010)
-7. [Acceptation des nœuds sur le Gateway](#7-acceptation-des-nœuds-sur-le-gateway)
+1. [Presentation de l'architecture](#1-presentation-de-larchitecture)
+2. [Prerequis machines](#2-prerequis-machines)
+3. [Securite : UFW et regles de pare-feu](#3-securite--ufw-et-regles-de-pare-feu)
+4. [Cle SSH : Manager -> Target](#4-cle-ssh--manager---target)
+5. [Installation de la Gateway OpenClaw (Manager)](#5-installation-de-la-gateway-openclaw-manager)
+6. [Migration du bot Telegram @Maxime205_bot](#6-migration-du-bot-telegram-maxime205_bot)
+7. [Deploiement du ML Sidecar](#7-deploiement-du-ml-sidecar)
 8. [Tests de validation (Ping/Pong)](#8-tests-de-validation-pingpong)
-9. [Orchestration : usage quotidien](#9-orchestration--usage-quotidien)
-10. [Scripts d'automatisation](#10-scripts-dautomatisation)
-11. [Dépannage](#11-dépannage)
-12. [Checklist de validation finale](#12-checklist-de-validation-finale)
+9. [Orchestration SSH : lancer des commandes sur la Target](#9-orchestration-ssh--lancer-des-commandes-sur-la-target)
+10. [Usage quotidien](#10-usage-quotidien)
+11. [Scripts d'automatisation](#11-scripts-dautomatisation)
+12. [Depannage](#12-depannage)
+13. [Checklist de validation finale](#13-checklist-de-validation-finale)
 
 ---
 
-## 1. Présentation de l'architecture
+## 1. Presentation de l'architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                   WSL2 (Windows 11) — Gateway Principal               │
-│   IP : 172.31.240.191    Port : 18789    Domaine : guaiguai2.duckdns │
-│   Roles : orchrestre les nœuds, heberge le modele IA, interface chat │
-│   Acces : Telegram (@Maxime205_bot) + Dashboard web                  │
+│                      AVANT (ANCIENNE ARCHI)                          │
+│                                                                      │
+│   WSL (Gateway) ──portproxy── Windows ──ws──► Manager (Node)        │
+│                    ↑ changements d'IP                                │
+│                    ↑ portproxy fragile                               │
+│                    ↑ dependance WSL                                  │
 └──────────────────────────────────────────────────────────────────────┘
-          │                          │
-          │ Connexion WebSocket     │ Connexion WebSocket
-          │ sortante vers           │ sortante vers
-          │ 192.168.30.1:18789      │ 192.168.30.1:18789
-          ▼                          ▼
-┌────────────────────────┐  ┌────────────────────────┐
-│  Manager VM             │  │  Target VM              │
-│  Ubuntu 24.04           │  │  Ubuntu 22.04           │
-│  192.168.30.3           │  │  192.168.30.10          │
-│                         │  │                         │
-│  ┌───────────────────┐  │  │  ┌───────────────────┐  │
-│  │ Nœud OpenClaw      │  │  │  │ Nœud OpenClaw      │  │
-│  │ (service systemd)  │  │  │  │ (service systemd)  │  │
-│  └───────────────────┘  │  │  └───────────────────┘  │
-│  ┌───────────────────┐  │  │  ┌───────────────────┐  │
-│  │ Wazuh Manager      │  │  │  │ Wazuh Agent        │  │
-│  │ (all-in-one)       │  │  │  │ (connect au Mgr)   │  │
-│  └───────────────────┘  │  │  └───────────────────┘  │
-│  ┌───────────────────┐  │  │  ┌───────────────────┐  │
-│  │ ML Sidecar         │  │  │  │ Suricata IDS       │  │
-│  │ (Inference :9090)  │  │  │  │ (ecoute enp0s8)    │  │
-│  └───────────────────┘  │  │  └───────────────────┘  │
-│  ┌───────────────────┐  │  │  ┌───────────────────┐  │
-│  │ OpenSearch :9200   │  │  │  │ Docker             │  │
-│  │ Wazuh Indexeur     │  │  │  │ (campagnes IA)     │  │
-│  └───────────────────┘  │  │  └───────────────────┘  │
-└────────────────────────┘  └────────────────────────┘
-          │                          │
-          └──────────┬───────────────┘
-                     │ Communication directe (LAN 192.168.30.0/24)
-                     │ SSH, API REST, Wazuh Agent -> Manager
-                     ▼
-        ┌────────────────────────┐
-        │  ParrotOS (Attaquant)   │
-        │  192.168.30.5           │
-        │                         │
-        │  Envoie le trafic        │
-        │  d'attaque vers la      │
-        │  Target (visible par    │
-        │  Suricata)               │
-        └────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────┐
+│                      APRES (NOUVELLE ARCHI)                          │
+│                                                                      │
+│   ┌─────────────────────────────────────────┐                       │
+│   │  Manager VM (Ubuntu 24.04)              │                       │
+│   │  192.168.30.3                           │                       │
+│   │                                         │                       │
+│   │  ┌─────────────────────────────────┐    │                       │
+│   │  │  Gateway OpenClaw               │    │                       │
+│   │  │  Port 18789 (bind: lan)         │    │                       │
+│   │  │  Control UI : http://...3:18789 │    │                       │
+│   │  │  Bot Telegram @Maxime205_bot    │    │                       │
+│   │  │  Pipeline IA + inference        │    │                       │
+│   │  └─────────────────────────────────┘    │                       │
+│   │                                         │                       │
+│   │  ┌─────────────────────────────────┐    │                       │
+│   │  │  Wazuh Manager (all-in-one)     │    │                       │
+│   │  └─────────────────────────────────┘    │                       │
+│   │                                         │                       │
+│   │  ┌─────────────────────────────────┐    │                       │
+│   │  │  ML Sidecar (Inference :9090)   │    │                       │
+│   │  └─────────────────────────────────┘    │                       │
+│   └─────────────────────────────────────────┘                       │
+│            │                                                        │
+│            │ SSH (cles) vers la Target                              │
+│            │ commandes : campagne, docker, suricata, logs           │
+│            ▼                                                        │
+│   ┌─────────────────────────────────────────┐                       │
+│   │  Target VM (Ubuntu 22.04)               │                       │
+│   │  192.168.30.10                          │                       │
+│   │                                         │                       │
+│   │  ┌─────────────────────────────────┐    │                       │
+│   │  │  Suricata IDS (af-packet)      │    │                       │
+│   │  └─────────────────────────────────┘    │                       │
+│   │                                         │                       │
+│   │  ┌─────────────────────────────────┐    │                       │
+│   │  │  Docker (campagnes d'attaque)   │    │                       │
+│   │  └─────────────────────────────────┘    │                       │
+│   │                                         │                       │
+│   │  ┌─────────────────────────────────┐    │                       │
+│   │  │  Wazuh Agent (-> Manager)       │    │                       │
+│   │  └─────────────────────────────────┘    │                       │
+│   └─────────────────────────────────────────┘                       │
+│                                                                      │
+│   ┌──────────────────┐                                               │
+│   │  ParrotOS         │  Attaquant sur le meme reseau               │
+│   │  192.168.30.5     │  -> UFW le bloque de TOUT                   │
+│   └──────────────────┘                                               │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-### Flux de données
+### Flux de donnees
 
 ```
-[ParrotOS] ──nmap/hydra──► [Target] ──eve.json──► [Agent Wazuh]
-                                                       │
-                                                       ▼
-                                              [Manager Wazuh]
-                                                       │
-                                              [alerts.json]
-                                                       │
-                                              [ML Inference:9090]
-                                                       │
-                                              [Predictions DB]
-                                                       │
-                                              [Wazuh Dashboard]
+[Telegram] ──DM──► [Manager Gateway] ─exec/SSH──► [Target]
+                         │                              │
+                         │                        [Suricata] ←── [ParrotOS]
+                         │                              │
+                         │                        [Wazuh Agent]
+                         ▼                              │
+                    [Wazuh Manager] ◄───────────────────┘
+                         │
+                    [alerts.json]
+                         │
+                    [ML Inference :9090]
+                         │
+                    [Predictions DB]
+                         │
+                    [Wazuh Dashboard]
 ```
 
-### Rôles des nœuds OpenClaw
+### Ce qui change concretement
 
-| Machine | Nom du nœud | Rôle | Outils autorisés |
-|---------|-------------|------|------------------|
-| WSL (Gateway) | — (Gateway) | Orchestrateur central | Tous |
-| Manager | `manager-wazuh` | ML inference, API, Wazuh | `system.run`, `system.which` |
-| Target | `target-suricata` | Suricata, Docker, Wazuh agent | `system.run`, `system.which` |
+| Avant (WSL) | Apres (Manager) | Gain |
+|------------|----------------|------|
+| Gateway sur WSL (IP variable) | Gateway sur Manager (IP fixe) | Plus de portproxy |
+| Node Host sur Manager | Gateway complet sur Manager | Plus de connexion WS |
+| Node Host sur Target | SSH uniquement | Plus de second node |
+| Portproxy Windows fragile | UFW + IP fixe | Stable au reboot |
+| 3 machines impliquees (WSL + 2 VMs) | 2 machines (Manager + Target) | Simplification radicale |
 
 ---
 
-## 2. Prérequis réseau et machines
+## 2. Prerequis machines
 
-### 2.1 Tableau des machines
+### 2.1 Adressage
 
-| Machine | OS | IP LAN (Host-Only) | IP NAT | Accès internet |
-|---------|----|--------------------|--------|----------------|
-| **WSL** (Gateway) | Ubuntu 22.04 (WSL2) | — | 172.31.240.191 | Oui |
-| **Manager** | Ubuntu 24.04 | 192.168.30.3 | 10.0.2.x | Oui (via NAT) |
-| **Target** | Ubuntu 22.04 | 192.168.30.10 | 10.0.2.x | Oui (via NAT) |
-| **ParrotOS** | Parrot OS | 192.168.30.5 | 10.0.2.x | Oui (via NAT) |
+| Machine | OS | IP Host-Only | Reseau |
+|---------|----|-------------|--------|
+| **Manager** (Gateway) | Ubuntu 24.04 | 192.168.30.3 | 192.168.30.0/24 |
+| **Target** (SSH) | Ubuntu 22.04 | 192.168.30.10 | 192.168.30.0/24 |
+| **Windows** (admin) | Windows 11 | 192.168.30.1 | 192.168.30.0/24 |
+| **ParrotOS** (attaquant) | Parrot OS | 192.168.30.5 | 192.168.30.0/24 |
 
-### 2.2 Inventaire des services déjà installés
+### 2.2 Inventaire Manager (192.168.30.3)
 
-#### Manager (192.168.30.3)
-| Service | Statut | Port | Credentials |
-|---------|--------|------|-------------|
-| Wazuh Manager | ✅ Installé | 55000 | `wazuh-wui` / `tpuKUfY7Auj2kd9yeRBwgiNjHH+mmNso` |
-| OpenSearch | ✅ Installé | 9200 | `admin` / `YFrxHHO*3QK2y6l6JceItXgQ8zO6Jbwn` |
-| Wazuh Dashboard | ✅ Installé | 443 | — |
-| Python 3 + pip | ✅ Installé | — | — |
-| XGBoost | ✅ Installé | — | — |
-| ML Sidecar | ⬜ À déployer | 9090 | Voir section 5 |
-| OpenClaw Node | ⬜ À installer | — | Voir section 5 |
-
-#### Target (192.168.30.10)
 | Service | Statut | Port | Notes |
 |---------|--------|------|-------|
-| Wazuh Agent | ✅ Installé | 1514/udp | Connecté au Manager |
-| Suricata | ✅ Installé | — | Règles ET + custom |
-| Docker | ✅ Installé | — | Pour campagnes |
-| Python 3 | ✅ Installé | — | — |
-| OpenClaw Node | ⬜ À installer | — | Voir section 6 |
+| Wazuh Manager | Deja installe | 55000 | All-in-one |
+| OpenSearch | Deja installe | 9200 | Indexeur Wazuh |
+| Wazuh Dashboard | Deja installe | 443 | Interface Wazuh |
+| Python 3 + pip3 | Deja installe | — | A verifier |
+| XGBoost | A installer | — | `pip3 install xgboost --break-system-packages` |
+| FastAPI + Uvicorn | A installer | — | Pour l'API ML |
+| ML Sidecar | A deployer | 9090 | Inference + API |
+| **OpenClaw Gateway** | **A installer** | **18789** | **NOUVEAU** |
+
+### 2.3 Inventaire Target (192.168.30.10)
+
+| Service | Statut | Port | Notes |
+|---------|--------|------|-------|
+| Wazuh Agent | Deja installe | 1514/udp | Connecte au Manager |
+| Suricata | Deja installe | — | Regles ET + custom |
+| Docker | Deja installe | — | Pour campagnes |
+| Python 3 | Deja installe | — | — |
+| **SSH serveur** | **Deja installe** | **22** | **Pour le Manager** |
+| **Cle publique Manager** | **A ajouter** | — | **NOUVEAU** |
+
+### 2.4 Flux reseau autorises (apres installation complete)
+
+```
+De Windows (192.168.30.1) :
+  -> Manager:22 (SSH admin)
+  -> Manager:18789 (Control UI OpenClaw)
+
+Du Manager (192.168.30.3) :
+  -> Target:22 (SSH pour commandes)
+  -> Internet (NAT) pour apt/pip/openclaw.ai
+
+De la Target (192.168.30.10) :
+  -> Manager:55000 (Wazuh Agent -> Manager)
+  -> Internet (NAT)
+
+De ParrotOS (192.168.30.5) :
+  -> RIEN (UFW bloque tout)
+  -> Note : Suricata capte quand meme le trafic reseau via af-packet
+```
 
 ---
 
-## 3. Sécurité : segmentation et UFW
+## 3. Securite : UFW et regles de pare-feu
 
-### 3.1 Principes
-
-```
-┌────────────────────────────────────────────────────┐
-│ Règle d'or :                                        │
-│ ParrotOS (attaquant) = NON CONFIANCE                │
-│   → Peut envoyer du trafic réseau (attaques)        │
-│   → NE PEUT PAS accéder aux interfaces de gestion   │
-│                                                     │
-│ Manager + Target = CONFIANCE PARTIELLE               │
-│   → Communication SSH et API entre elles            │
-│   → Accès limité à l'infrastructure OpenClaw        │
-└────────────────────────────────────────────────────┘
-```
-
-### 3.2 Règles UFW — Manager (192.168.30.3)
-
-Appliquer DANS L'ORDRE :
+### 3.1 Manager — Regles UFW
 
 ```bash
 # Se connecter au Manager
 ssh vboxuser@192.168.30.3
 
-# 1. Réinitialiser et configurer les règles par défaut
+# Reinitialiser
 sudo ufw --force reset
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 
-# 2. SSH — uniquement depuis Target et Windows Host
+# --- SSH ---
+# Admin depuis Windows
+sudo ufw allow from 192.168.30.1 to any port 22 proto tcp comment 'SSH depuis Windows'
+# SSH depuis la Target (pour debug, maintenance)
 sudo ufw allow from 192.168.30.10 to any port 22 proto tcp comment 'SSH depuis Target'
-sudo ufw allow from 192.168.30.1 to any port 22 proto tcp comment 'SSH depuis Windows Host'
 
-# 3. ML Inference API — accessible depuis la Target uniquement
-sudo ufw allow from 192.168.30.10 to any port 9090 proto tcp comment 'API ML pour Target'
+# --- OpenClaw Control UI ---
+# Accessible UNIQUEMENT depuis Windows (Maraa)
+sudo ufw allow from 192.168.30.1 to any port 18789 proto tcp comment 'OpenClaw UI depuis Windows'
 
-# 4. Wazuh API — locale uniquement (dashboard sur la même machine)
+# --- ML API ---
+sudo ufw allow from 192.168.30.10 to any port 9090 proto tcp comment 'API ML depuis Target'
+sudo ufw allow from 127.0.0.1 to any port 9090 proto tcp comment 'API ML locale'
+
+# --- Wazuh API ---
+sudo ufw allow from 192.168.30.10 to any port 55000 proto tcp comment 'Wazuh API depuis Target'
 sudo ufw allow from 127.0.0.1 to any port 55000 proto tcp comment 'Wazuh API locale'
-sudo ufw allow from 192.168.30.10 to any port 55000 proto tcp comment 'Wazuh API Target'
 
-# 5. OpenSearch — local uniquement
+# --- Wazuh Agent (entrant depuis la Target) ---
+sudo ufw allow from 192.168.30.10 to any port 1514 proto udp comment 'Wazuh Agent UDP'
+sudo ufw allow from 192.168.30.10 to any port 1515 proto tcp comment 'Wazuh Agent TCP'
+
+# --- OpenSearch (local uniquement) ---
 sudo ufw allow from 127.0.0.1 to any port 9200 proto tcp comment 'OpenSearch local'
 
-# 6. Wazuh Dashboard — local uniquement
+# --- Dashboard Wazuh (local uniquement) ---
 sudo ufw allow from 127.0.0.1 to any port 443 proto tcp comment 'Dashboard local'
 
-# 7. (Optionnel) Ports Wazuh pour l'agent Target
-sudo ufw allow 1514/udp comment 'Wazuh Agent -> Manager'
-
-# Activer
+# --- Activer ---
 sudo ufw --force enable
 sudo ufw status numbered
 ```
 
-**Résultat** : ParrotOS (192.168.30.5) ne peut RIEN atteindre sur le Manager.
+**Resultat :** ParrotOS (192.168.30.5) est bloque de TOUS les ports.
+Seuls Windows (192.168.30.1) et la Target (192.168.30.10) sont autorises.
 
-### 3.3 Règles UFW — Target (192.168.30.10)
+### 3.2 Target — Regles UFW
 
 ```bash
-# Se connecter à la Target
+# Se connecter a la Target
 ssh vboxuser@192.168.30.10
 
-# 1. Réinitialiser
 sudo ufw --force reset
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 
-# 2. SSH — Manager et Windows uniquement
+# --- SSH uniquement depuis le Manager ---
 sudo ufw allow from 192.168.30.3 to any port 22 proto tcp comment 'SSH depuis Manager'
-sudo ufw allow from 192.168.30.1 to any port 22 proto tcp comment 'SSH depuis Windows Host'
+# (Windows peut aussi etre autorise pour debug)
+sudo ufw allow from 192.168.30.1 to any port 22 proto tcp comment 'SSH depuis Windows'
 
-# 3. Wazuh Agent outbound (sortant déjà autorisé par default allow outgoing)
+# --- Wazuh Agent sortant vers le Manager ---
+# (deja autorise par default allow outgoing)
 
-# Activer
+# --- Activer ---
 sudo ufw --force enable
 sudo ufw status numbered
 ```
 
-**Suricata** capture les paquets via `af-packet`, qui travaille au niveau noyau,
-**avant** les règles iptables/UFW. Les attaques de ParrotOS sont donc bien
-visibles par Suricata, même si UFW bloque les connexions entrantes vers les
-ports de gestion.
+**Note Suricata :** UFW travaille au niveau iptables (layer 3/4). Suricata
+capte via `af-packet` au niveau noyau (layer 2). Meme si UFW bloque tout,
+Suricata voit les paquets de ParrotOS arriver sur l'interface.
 
-### 3.4 Vérification du blocage de ParrotOS
+### 3.3 Verification du blocage
 
 ```bash
-# Depuis ParrotOS, tenter :
-ssh vboxuser@192.168.30.3    # → REFUSED (timeout)
-ssh vboxuser@192.168.30.10   # → REFUSED (timeout)
-curl http://192.168.30.3:9090   # → REFUSED
-curl http://192.168.30.3:55000  # → REFUSED
+# Depuis ParrotOS (192.168.30.5) — TOUT DOIT ECHOUER :
+ssh vboxuser@192.168.30.3       # -> timeout
+ssh vboxuser@192.168.30.10      # -> timeout
+curl http://192.168.30.3:18789  # -> refused
+curl http://192.168.30.3:9090   # -> refused
+```
 
-# Ce n'est PAS un bug — c'est la sécurité qui fonctionne !
-# ParrotOS envoie toujours du trafic réseau que Suricata capte.
+```bash
+# Depuis Windows (192.168.30.1) — TOUT DOIT MARCHER :
+ssh vboxuser@192.168.30.3       # -> OK (SSH)
+http://192.168.30.3:18789       # -> OK (OpenClaw UI)
 ```
 
 ---
 
-## 4. Configuration Windows (Portproxy + Firewall)
+## 4. Cle SSH : Manager -> Target
 
-### 4.1 Vérifier l'IP WSL actuelle
-
-```bash
-# Dans WSL :
-ip addr show eth0 | grep inet
-# Résultat attendu : inet 172.31.240.191/20 ...
-```
-
-**⚠️ Note critique** : L'IP du WSL2 CHANGE à chaque reboot de Windows.
-Après un reboot, répéter les étapes 4.2 et 4.3 avec la nouvelle IP.
-
-### 4.2 Portproxy (PowerShell Admin)
-
-```powershell
-# PowerShell en mode Administrateur
-
-# Ajouter le portproxy
-netsh interface portproxy add v4tov4 `
-  listenport=18789 listenaddress=0.0.0.0 `
-  connectaddress=172.31.240.191 connectport=18789
-
-# Vérifier
-netsh interface portproxy show all
-```
-
-### 4.3 Firewall Windows — Filtrage par IP
-
-```powershell
-# PowerShell en mode Administrateur
-
-# 1. Autoriser les IP de confiance
-netsh advfirewall firewall add rule name="OpenClaw-Manager" `
-  dir=in action=allow protocol=TCP localport=18789 remoteip=192.168.30.3
-
-netsh advfirewall firewall add rule name="OpenClaw-Target" `
-  dir=in action=allow protocol=TCP localport=18789 remoteip=192.168.30.10
-
-# 2. Bloquer toutes les autres IP (y compris ParrotOS)
-netsh advfirewall firewall add rule name="OpenClaw-Deny-Others" `
-  dir=in action=block protocol=TCP localport=18789
-
-# 3. Vérifier
-netsh advfirewall firewall show rule name="OpenClaw-*"
-```
-
-**Résultat** : Seuls le Manager et la Target peuvent utiliser le portproxy
-pour se connecter au Gateway WSL. ParrotOS est bloqué au niveau Windows.
-
-### 4.4 Test de base (avant installation des nœuds)
-
-```powershell
-# PowerShell (pas besoin d'admin pour ça)
-Test-NetConnection -ComputerName 192.168.30.1 -Port 18789
-```
-
-### 4.5 Après reboot Windows
+### 4.1 Generer la paire de cles sur le Manager
 
 ```bash
-# 1. Dans WSL : trouver la nouvelle IP
-ip addr show eth0 | grep inet
+# Sur le Manager
+ssh vboxuser@192.168.30.3
 
-# 2. PowerShell Admin : mettre à jour
-netsh interface portproxy set v4tov4 `
-  listenport=18789 listenaddress=0.0.0.0 `
-  connectaddress=NOUVELLE_IP connectport=18789
+# Generer une cle ED25519 (plus rapide et aussi sure que RSA)
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -C "manager-gateway@wazuh-lab"
+
+# Verifier
+ls -la ~/.ssh/
+# -> id_ed25519 (cle privee)
+# -> id_ed25519.pub (cle publique)
+```
+
+### 4.2 Deployer la cle publique sur la Target
+
+```bash
+# Methode 1 : ssh-copy-id (necessite le mot de passe une fois)
+ssh-copy-id vboxuser@192.168.30.10
+
+# Methode 2 : manuelle (si ssh-copy-id pas disponible)
+# Sur le Manager :
+cat ~/.ssh/id_ed25519.pub
+# Copier la sortie, puis sur la Target :
+echo "<cle_publique>" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+### 4.3 Tester la connexion SSH sans mot de passe
+
+```bash
+# Sur le Manager
+ssh vboxuser@192.168.30.10 "hostname && uptime"
+
+# Resultat attendu :
+# target-vm
+# up 2 hours, 30 minutes
+```
+
+### 4.4 Configurer SSH pour la simplicite
+
+Ajouter dans `~/.ssh/config` sur le Manager :
+
+```bash
+cat >> ~/.ssh/config << 'EOF'
+
+Host target
+    HostName 192.168.30.10
+    User vboxuser
+    IdentityFile ~/.ssh/id_ed25519
+    StrictHostKeyChecking accept-new
+EOF
+```
+
+Desormais, le Manager peut faire `ssh target <commande>` au lieu de
+`ssh vboxuser@192.168.30.10 <commande>`.
+
+### 4.5 Tester les commandes sudo a distance
+
+```bash
+# Tester sudo sans mot de passe
+ssh target "sudo whoami"
+# -> doit afficher "root"
+
+# Si ca demande un mot de passe, configurer sudoers sur la Target :
+ssh target "echo 'vboxuser ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/vboxuser"
 ```
 
 ---
 
-## 5. Installation du Manager (Ubuntu 24.04 — 192.168.30.3)
+## 5. Installation de la Gateway OpenClaw (Manager)
 
 ### 5.1 Installer OpenClaw
 
 ```bash
-# Dans un terminal SSH sur le Manager
+# Sur le Manager
 ssh vboxuser@192.168.30.3
 
-# Installer OpenClaw
 curl -sL https://openclaw.ai/install.sh | bash
-
-# Vérifier
 openclaw --version
-# Résultat attendu : OpenClaw 2026.6.5 (ou version récente)
 ```
 
-### 5.2 Configurer le nœud
+### 5.2 Configurer la Gateway
 
 ```bash
-# Récupérer le token Gateway depuis WSL
-# (à faire dans un autre terminal, garder le token pour plus tard)
+# Lancer la configuration guidee (repondre aux questions)
+openclaw configure
 
-# Configurer le token dans l'environnement
-# NE PAS mettre le token en clair dans l'historique bash
-read -s -p "Token Gateway : " GW_TOKEN
-export OPENCLAW_GATEWAY_TOKEN="$GW_TOKEN"
-
-# Lancer en mode foreground pour tester la connexion
-openclaw node run --host 192.168.30.1 --port 18789 --display-name "manager-wazuh"
+# Questions et reponses attendues :
+# - Modle par defaut : deepseek/deepseek-v4-flash (ou celui utilise)
+# - Provider : deepseek
+# - Cle API DeepSeek : <ta_cle>
+# - Gateway port : 18789 (laisser par defaut)
+# - Gateway bind : LAN (pour le dashboard)
+# - Gateway auth mode : token (choisir)
+# - Token : laisser OpenClaw en generer un (ou mettre le tien)
+# - Channel Telegram : oui
+#   -> Bot token : <token_de_@Maxime205_bot>
+#   -> DM policy : pairing
 ```
 
-**Ne pas fermer le terminal** — laisser tourner le nœud en foreground
-le temps de l'approuver (section 7). Ensuite on installe le service.
+**Alternative : configuration manuelle**
 
-### 5.3 Déployer le ML Sidecar
+Si tu preferes configurer le fichier directement :
 
 ```bash
-# Cloner le repo (ou copier depuis le Gateway si pas d'internet)
+# Editer la config
+nano ~/.openclaw/openclaw.json
+```
+
+Contenu attendu :
+
+```json
+{
+  "gateway": {
+    "port": 18789,
+    "bind": "lan",
+    "auth": {
+      "mode": "token",
+      "token": "***"
+    }
+  },
+  "providers": {
+    "deepseek": {
+      "apiKey": "***"
+    }
+  },
+  "channels": {
+    "telegram": {
+      "accounts": {
+        "default": {
+          "botToken": "***"
+        }
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": "deepseek/deepseek-v4-flash"
+    }
+  },
+  "tools": {
+    "elevated": {
+      "enabled": true
+    }
+  }
+}
+```
+
+### 5.3 Installer le service systemd
+
+```bash
+# Installer la Gateway comme service systemd
+openclaw gateway install
+
+# Demarrer
+openclaw gateway start
+
+# Verifier
+openclaw gateway status
+# -> doit afficher "running"
+```
+
+### 5.4 Configurer le control UI (basePath optionnel)
+
+Si le dashboard doit etre accessible via un sous-chemin (ex: /lab/) :
+
+```bash
+openclaw config set gateway.controlUi.basePath "/"
+# ou rien = racine
+```
+
+### 5.5 (Optionnel) Auto-pairing pour le dashboard
+
+```bash
+# Pour eviter le pairing a chaque connexion au dashboard
+openclaw config set gateway.controlUi.allowInsecureAuth true
+```
+
+---
+
+## 6. Migration du bot Telegram @Maxime205_bot
+
+### 6.1 Recuperer le token Telegram
+
+Le token du bot @Maxime205_bot est stocke dans la config OpenClaw du WSL.
+
+**Methode 1 :** Depuis le fichier de config WSL :
+
+```bash
+# Dans le WSL
+cat ~/.openclaw/openclaw.json | grep -A2 telegram
+# Copier le botToken (format : "123456:ABCdef...")
+```
+
+**Methode 2 :** Depuis BotFather (Telegram) :
+
+```bash
+# Ouvrir Telegram, DM @BotFather
+# Commande : /mybots
+# Selectionner @Maxime205_bot
+# -> API Token
+```
+
+### 6.2 Configurer le token sur le Manager
+
+Si tu n'as pas configure Telegram pendant `openclaw configure` :
+
+```bash
+openclaw config set 'channels.telegram.accounts.default.botToken' "***"
+# OU utiliser la commande channels
+openclaw channels login --channel telegram
+# Coller le token quand demande
+```
+
+### 6.3 Redemarrer la Gateway
+
+```bash
+openclaw gateway restart
+openclaw channels status --probe
+# -> Telegram doit etre "connected"
+```
+
+### 6.4 Tester le bot
+
+Envoyer un message a @Maxime205_bot sur Telegram :
+```
+/ping
+```
+
+### 6.5 (Important) Que faire de l'ancienne instance WSL ?
+
+Une fois la migration confirmee, arreter l'ancienne Gateway WSL :
+
+```bash
+# Sur le WSL — NE PAS FAIRE TANT QUE LE MANAGER N'EST PAS VALIDE
+openclaw gateway stop
+openclaw gateway uninstall
+```
+
+**Mais garder les donnees WSL accessibles** au cas ou (session history,
+fichiers de config) :
+
+```bash
+# Option : faire un backup avant de supprimer
+tar czf ~/backup_openclaw_wsl.tar.gz ~/.openclaw/
+```
+
+---
+
+## 7. Deploiement du ML Sidecar
+
+### 7.1 Installer les dependances Python
+
+```bash
+# Sur le Manager
+sudo apt install python3-pip -y
+
+# Installer les paquets ML
+sudo pip3 install xgboost fastapi uvicorn \
+  --break-system-packages \
+  --ignore-installed typing-extensions
+```
+
+### 7.2 Deployer les fichiers
+
+```bash
+# Cloner le repo
 git clone https://github.com/maraa081/wazuh-test.git /home/vboxuser/wazuh-test
 
-# Créer le dossier du sidecar
+# Creer le dossier du sidecar
 sudo mkdir -p /opt/wazuh-ml
 
 # Copier les fichiers
@@ -361,18 +557,15 @@ sudo chmod 755 /opt/wazuh-ml/
 sudo chmod 644 /opt/wazuh-ml/*.json
 sudo chmod 755 /opt/wazuh-ml/*.py
 
-# Base de données SQLite
+# Base de donnees
 sudo touch /tmp/predictions.db
 sudo chmod 666 /tmp/predictions.db
-
-# Installer les dépendances Python si pas déjà fait
-sudo pip3 install xgboost fastapi uvicorn --break-system-packages
 ```
 
-### 5.4 Créer les services systemd du ML Sidecar
+### 7.3 Creer les services systemd
 
 ```bash
-# Service d'inférence
+# Service d'inference
 sudo tee /etc/systemd/system/wazuh-inference.service << 'EOF'
 [Unit]
 Description=Wazuh ML Inference Service
@@ -414,428 +607,379 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# Activer et démarrer
+# Activer
 sudo systemctl daemon-reload
 sudo systemctl enable wazuh-inference wazuh-api
 sudo systemctl start wazuh-inference
-
-# Attendre 5 secondes
 sleep 5
-
-# Vérifier l'inférence
-sudo journalctl -u wazuh-inference -n 20 --no-pager
-
-# Puis démarrer l'API
 sudo systemctl start wazuh-api
-sudo journalctl -u wazuh-api -n 20 --no-pager
 ```
 
-### 5.5 Installer le service systemd du nœud OpenClaw
+### 7.4 Verifier le ML
 
 ```bash
-# Arrêter le nœud foreground (Ctrl+C) puis :
-openclaw node install \
-  --host 192.168.30.1 \
-  --port 18789 \
-  --display-name "manager-wazuh"
+# Services
+systemctl is-active wazuh-inference wazuh-api
+# -> active active
 
-# Démarrer le service
-openclaw node start
-openclaw node status
-```
+# API Health
+curl -s http://127.0.0.1:9090/health
+# -> {"status":"ok"}
 
-### 5.6 Vérifications finales Manager
+# Modele charge
+curl -s http://127.0.0.1:9090/model/status
+# -> {"model_loaded":true,...}
 
-```bash
-# Nœud OpenClaw
-openclaw node status
-# → doit afficher "running"
-
-# ML Inference
-curl -s http://127.0.0.1:9090/predictions/recent
-# → doit répondre (liste vide ou prédictions)
-
-# Wazuh Manager
-sudo systemctl status wazuh-manager
-# → doit être running
-
-# UFW
-sudo ufw status numbered
-# → doit montrer les règles restrictives
-```
-
----
-
-## 6. Installation de la Target (Ubuntu 22.04 — 192.168.30.10)
-
-### 6.1 Installer OpenClaw
-
-```bash
-ssh vboxuser@192.168.30.10
-
-curl -sL https://openclaw.ai/install.sh | bash
-openclaw --version
-```
-
-### 6.2 Configurer le nœud (test foreground)
-
-```bash
-read -s -p "Token Gateway : " GW_TOKEN
-export OPENCLAW_GATEWAY_TOKEN="$GW_TOKEN"
-
-openclaw node run --host 192.168.30.1 --port 18789 --display-name "target-suricata"
-```
-
-### 6.3 Installer le service systemd
-
-```bash
-# Ctrl+C pour arrêter le foreground, puis :
-openclaw node install \
-  --host 192.168.30.1 \
-  --port 18789 \
-  --display-name "target-suricata"
-
-openclaw node start
-openclaw node status
-```
-
-### 6.4 Vérifier Suricata et Docker
-
-```bash
-# Suricata
-sudo suricata -T -c /etc/suricata/suricata.yaml
-# → doit afficher "suricata: running"
-
-# Docker
-sudo docker ps
-# → doit fonctionner (liste vide si pas de conteneurs)
-
-# Wazuh Agent
-sudo systemctl status wazuh-agent
-# → doit être connected au Manager
-```
-
-### 6.5 Vérifications finales Target
-
-```bash
-openclaw node status
-# → "running"
-
-sudo ufw status numbered
-# → SSH bloqué pour tout sauf Manager et Windows
-```
-
----
-
-## 7. Acceptation des nœuds sur le Gateway
-
-### 7.1 Sur le Gateway WSL
-
-```bash
-# Lister les requêtes en attente
-openclaw devices list
-
-# Exemple de sortie :
-# Pending device pairing requests:
-#   req_abc123   manager-wazuh (192.168.30.3)
-#   req_def456   target-suricata (192.168.30.10)
-
-# Approuver chaque nœud
-openclaw devices approve req_abc123
-openclaw devices approve req_def456
-```
-
-### 7.2 Vérifier les nœuds connectés
-
-```bash
-openclaw nodes list
-openclaw nodes list --connected
-openclaw nodes status
-```
-
-**Résultat attendu** :
-
-```
-Node              ID                  Status       Last Connect
-manager-wazuh     <id>               Paired       just now
-target-suricata   <id>               Paired       just now
-```
-
-### 7.3 (Optionnel) Auto-approve pour le futur
-
-Si tu veux que les nœuds du labo soient automatiquement approuvés
-(évite de devoir approuver manuellement après un redéploiement) :
-
-```bash
-# Éditer la config OpenClaw
-openclaw config set 'gateway.nodes.pairing.autoApproveCidrs' '["192.168.30.0/24"]'
-
-# Redémarrer le Gateway
-openclaw gateway restart
+# Predictions
+curl -s http://127.0.0.1:9090/predictions/recent?limit=3
+# -> [...] (liste vide ou predictions)
 ```
 
 ---
 
 ## 8. Tests de validation (Ping/Pong)
 
-### 8.1 Test 1 : Connexion basique (echo)
+### 8.1 Test 1 : La Gateway OpenClaw repond
 
-```bash
-# Depuis le Gateway WSL, tester le Manager :
-openclaw nodes invoke --node "manager-wazuh" \
-  --command "system.run" \
-  --params '{"command":"echo PONG_MANAGER && hostname && uptime -p"}'
-
-# Résultat attendu :
-# {
-#   "stdout": "PONG_MANAGER\nmanager-wazuh\nup 2 hours, 15 minutes\n",
-#   "stderr": "",
-#   "exitCode": 0
-# }
-
-# Tester la Target :
-openclaw nodes invoke --node "target-suricata" \
-  --command "system.run" \
-  --params '{"command":"echo PONG_TARGET && hostname && uptime -p"}'
-
-# Résultat attendu similaire avec "target-suricata"
+Depuis Telegram, envoyer au bot @Maxime205_bot :
 ```
-
-### 8.2 Test 2 : Check des services spécifiques
-
-```bash
-# Manager — vérifier que les services ML tournent
-openclaw nodes invoke --node "manager-wazuh" \
-  --command "system.run" \
-  --params '{"command":"systemctl is-active wazuh-inference wazuh-api"}'
-
-# Résultat attendu : "active\nactive"
-
-# Target — vérifier Suricata et Docker
-openclaw nodes invoke --node "target-suricata" \
-  --command "system.run" \
-  --params '{"command":"systemctl is-active suricata && sudo docker info --format \\"{{.ServerVersion}}\\""}'
-
-# Résultat attendu : "active\nXX.XX.XX"
+/ping
 ```
+→ Reponse attendue : `Pong!` ou message de bienvenue.
 
-### 8.3 Test 3 : Communication Manager ↔ Target
+### 8.2 Test 2 : Le Control UI est accessible
 
-```bash
-# Depuis le Gateway, tester le ping entre les VMs via le Manager :
-openclaw nodes invoke --node "manager-wazuh" \
-  --command "system.run" \
-  --params '{"command":"ping -c 2 -W 2 192.168.30.10"}'
-
-# Résultat : 0% packet loss
-
-# Via la Target :
-openclaw nodes invoke --node "target-suricata" \
-  --command "system.run" \
-  --params '{"command":"ping -c 2 -W 2 192.168.30.3"}'
-
-# Résultat : 0% packet loss
+Depuis le navigateur Windows :
 ```
-
-### 8.4 Test 4 : Pipeline ML complet (validation bout en bout)
-
-```bash
-# 1. Vérifier que l'API ML répond
-openclaw nodes invoke --node "manager-wazuh" \
-  --command "system.run" \
-  --params '{"command":"curl -s http://127.0.0.1:9090/health"}'
-
-# 2. Vérifier le modèle chargé
-openclaw nodes invoke --node "manager-wazuh" \
-  --command "system.run" \
-  --params '{"command":"curl -s http://127.0.0.1:9090/model/status"}'
-
-# 3. Vérifier les prédictions récentes
-openclaw nodes invoke --node "manager-wazuh" \
-  --command "system.run" \
-  --params '{"command":"curl -s http://127.0.0.1:9090/predictions/recent?limit=5"}'
+http://192.168.30.3:18789
 ```
+→ La page d'accueil OpenClaw doit s'afficher.
+
+### 8.3 Test 3 : SSH vers la Target
+
+Depuis le chat Telegram, demander a l'agent :
+```
+exec command="ssh target hostname"
+```
+→ L'agent doit repondre avec `target-vm` ou le hostname de la Target.
+
+### 8.4 Test 4 : Pipeline ML
+
+```
+exec command="curl -s http://127.0.0.1:9090/health"
+```
+→ L'agent doit repondre avec le status JSON de l'API ML.
+
+### 8.5 Test 5 : Campagne complete (SSH + ML)
+
+```
+exec command="ssh target 'echo PONG_TARGET && hostname && uptime -p'"
+```
+→ L'agent doit afficher PONG_TARGET, le hostname, et l'uptime.
 
 ---
 
-## 9. Orchestration : usage quotidien
+## 9. Orchestration SSH : lancer des commandes sur la Target
 
-### 9.1 Depuis le chat OpenClaw (Telegram)
+### 9.1 Principe
 
-Une fois les nœuds opérationnels, tu peux piloter tout le labo directement
-depuis Telegram. Exemples de commandes que l'agent peut exécuter :
+Depuis le chat Telegram (ou le dashboard WebChat), l'agent OpenClaw
+execute des commandes sur la Target en utilisant `exec` avec SSH :
 
 ```
-# Lancer une campagne d'attaque (sur la Target)
-exec host=node node=target-suricata command="cd /home/vboxuser/wazuh-test/traffic-generator && sudo python3 main.py --duration 600"
-
-# Vérifier que Suricata capte du trafic
-exec host=node node=target-suricata command="sudo tail -n 20 /var/log/suricata/fast.log"
-
-# Voir les prédictions de l'IA (sur le Manager)
-exec host=node node=manager-wazuh command="curl -s http://127.0.0.1:9090/predictions/recent?limit=5"
-
-# Redémarrer le service ML inference
-exec host=node node=manager-wazuh command="sudo systemctl restart wazuh-inference"
-
-# Collecter des alertes fraîches du Manager
-exec host=node node=manager-wazuh command="tail -n 100 /var/ossec/logs/alerts/alerts.json"
+exec command="ssh target <commande>"
 ```
 
-### 9.2 Automatisation via cron OpenClaw
+L'agent a acces a la cle SSH configuree en section 4. Il peut donc
+lancer n'importe quelle commande sur la Target.
 
-Créer des tâches planifiées :
+### 9.2 Commandes usuelles
 
 ```bash
-# Tous les jours à 8h : vérifier l'état des services
+# Verifier Suricata
+exec command="ssh target 'sudo suricata -T -c /etc/suricata/suricata.yaml'"
+
+# Voir les alertes Suricata
+exec command="ssh target 'sudo tail -n 20 /var/log/suricata/fast.log'"
+
+# Lister les conteneurs Docker
+exec command="ssh target 'sudo docker ps -a --format \"table {{.Names}}\t{{.Status}}\"'"
+
+# Lancer une campagne d'attaque (600 secondes)
+exec command="ssh target 'cd /home/vboxuser/wazuh-test/traffic-generator && sudo python3 main.py --duration 600'"
+
+# Verifier l'agent Wazuh
+exec command="ssh target 'sudo systemctl status wazuh-agent | head -5'"
+
+# Collecter les logs eve.json
+exec command="ssh target 'sudo tail -n 100 /var/log/suricata/eve.json | python3 -m json.tool'"
+```
+
+### 9.3 Sequences orchestrees
+
+**Sequence type : Campagne + Collecte + Inference :**
+
+```
+1. Lance la campagne sur la Target
+   exec command="ssh target 'cd /home/vboxuser/wazuh-test/traffic-generator && sudo python3 main.py --duration 300'"
+
+2. Attends la fin de la campagne (ou quelques minutes)
+   (l'agent attend ou tu dis "continue")
+
+3. Collecte les alertes Wazuh sur le Manager
+   exec command="mkdir -p /tmp/campaign_$(date +%Y%m%d) && cp /var/ossec/logs/alerts/alerts.json /tmp/campaign_$(date +%Y%m%d)/alerts_snapshot.json && wc -l /tmp/campaign_$(date +%Y%m%d)/alerts_snapshot.json"
+
+4. Verifie les predictions ML
+   exec command="curl -s http://127.0.0.1:9090/predictions/recent?limit=5"
+```
+
+### 9.4 Securite SSH
+
+La cle privee est stockee dans `~/.ssh/id_ed25519` sur le Manager.
+L'agent OpenClaw peut y acceder via `exec` (shell). Il n'y a pas de
+risque d'exfiltration puisque l'agent n'a pas acces aux outils
+d'envoi de fichiers a l'exterieur.
+
+Pour renforcer la securite, on peut restreindre les commandes SSH
+dans `authorized_keys` sur la Target :
+
+```
+# Sur la Target, dans ~/.ssh/authorized_keys
+command="/home/vboxuser/ssh-gate.sh" ssh-ed25519 AAA...
+```
+
+Mais dans un contexte de labo, ce n'est pas necessaire.
+
+---
+
+## 10. Usage quotidien
+
+### 10.1 Depuis Telegram
+
+Exemples de choses que tu peux demander a @Maxime205_bot :
+
+```
+@veille lance une campagne de 5 minutes sur la Target
+```
+
+```
+@veille verifie que Suricata tourne bien
+```
+
+```
+@veille collecte les dernieres alertes et donne moi le statut du modele IA
+```
+
+```
+@veille redemarre l'API ML
+```
+
+### 10.2 Depuis le Control UI (dashboard web)
+
+`http://192.168.30.3:18789` → WebChat integre.
+Tu peux discuter avec l'agent depuis le navigateur Windows,
+avec du rendu riche (tableaux, graphiques).
+
+### 10.3 Automatisation cron
+
+```bash
+# Creer une tache planifiee : verification matinale
 openclaw cron add \
-  --name "lab-healthcheck" \
+  --name "lab-daily-check" \
   --schedule '{"kind":"cron","expr":"0 8 * * *","tz":"Europe/Paris"}' \
-  --payload '{"kind":"systemEvent","text":"Check lab VMs: exec host=node node=manager command=\"systemctl is-active wazuh-inference wazuh-api\""}'
-```
-
-### 9.3 Orchestration multi-nœuds (séquences)
-
-```bash
-# Exemple : séquence complète "Campagne -> Collecte -> Inférence"
-
-# 1. Lancer la campagne
-echo "=== LANCEMENT CAMPAGNE ==="
-openclaw nodes invoke --node "target-suricata" \
-  --command "system.run" \
-  --params '{"command":"cd /home/vboxuser/wazuh-test/traffic-generator && sudo python3 main.py --duration 300 --background"}'
-
-# 2. Attendre
-echo "=== ATTENTE 60s ==="
-sleep 60
-
-# 3. Vérifier l'état de la campagne
-openclaw nodes invoke --node "target-suricata" \
-  --command "system.run" \
-  --params '{"command":"sudo docker ps --format \\"{{.Names}} {{.Status}}\\" | head -10"}'
-
-# 4. Une fois la campagne finie, collecter les alertes sur le Manager
-echo "=== COLLECTE ALERTES ==="
-openclaw nodes invoke --node "manager-wazuh" \
-  --command "system.run" \
-  --params '{"command":"tail -n 500 /var/ossec/logs/alerts/alerts.json > /tmp/recent_alerts.json && wc -l /tmp/recent_alerts.json"}'
+  --payload '{"kind":"systemEvent","text":"Executer healthcheck du labo Wazuh : verifier Manager, Target, ML inference"}'
 ```
 
 ---
 
-## 10. Scripts d'automatisation
+## 11. Scripts d'automatisation
 
-### 10.1 Script : `lab-campaign.sh`
+### 11.1 Script : `lab-campaign.sh`
 
-À placer sur le Gateway WSL dans `/home/user/.openclaw/workspace/scripts/` :
+A placer sur le Manager dans `/home/vboxuser/scripts/` :
 
 ```bash
 #!/bin/bash
-# lab-campaign.sh — Orchestration complète d'une campagne
+# lab-campaign.sh — Orchestration campagne via SSH
 # Usage : ./lab-campaign.sh <duree_secondes>
 
 DURATION=${1:-300}
-NODE_MANAGER="manager-wazuh"
-NODE_TARGET="target-suricata"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+TARGET_SCRIPT="/home/vboxuser/wazuh-test/traffic-generator/main.py"
 
 echo "[$(date +%H:%M:%S)] === CAMPAGNE $TIMESTAMP (${DURATION}s) ==="
 
-# Phase 1 : Préparer la collecte
-echo "[1/4] Preparation de la collecte..."
-openclaw nodes invoke --node "$NODE_MANAGER" \
-  --command "system.run" \
-  --params "{\"command\":\"mkdir -p /tmp/campaign_$TIMESTAMP\"}"
+# Phase 1 : Verifier que la Target est joignable
+echo "[1/4] Verification de la Target..."
+ssh target "hostname" || { echo "[FAIL] Target injoignable"; exit 1; }
+echo "[OK] Target connectee"
 
 # Phase 2 : Lancer la campagne
 echo "[2/4] Lancement de la campagne (${DURATION}s)..."
-openclaw nodes invoke --node "$NODE_TARGET" \
-  --command "system.run" \
-  --params "{\"command\":\"cd /home/vboxuser/wazuh-test/traffic-generator && sudo python3 main.py --duration $DURATION\"}"
+ssh target "cd /home/vboxuser/wazuh-test/traffic-generator && sudo python3 main.py --duration $DURATION"
+echo "[OK] Campagne terminee"
 
-# Phase 3 : Attendre un peu puis collecter
-echo "[3/4] Attente et collecte..."
-sleep $((DURATION + 30))
+# Phase 3 : Collecter les alertes
+echo "[3/4] Collecte des alertes..."
+mkdir -p /tmp/campaign_$TIMESTAMP
+cp /var/ossec/logs/alerts/alerts.json /tmp/campaign_$TIMESTAMP/alerts_snapshot.json
+ALERTS=$(wc -l < /tmp/campaign_$TIMESTAMP/alerts_snapshot.json)
+echo "[OK] $ALERTS alertes collectees"
 
-ALERTS=$(openclaw nodes invoke --node "$NODE_MANAGER" \
-  --command "system.run" \
-  --params "{\"command\":\"tail -n 1000 /var/ossec/logs/alerts/alerts.json | wc -l\"}" 2>&1 | grep -oP '"stdout":"\K[^"]+')
+# Phase 4 : Verifier les predictions
+echo "[4/4] Verification du pipeline ML..."
+curl -s http://127.0.0.1:9090/health
+echo ""
+echo "[OK] ML API fonctionnelle"
 
-echo "Alertes collectees : $ALERTS"
-
-# Phase 4 : Inférence sur les nouvelles alertes
-echo "[4/4] Inference ML..."
-openclaw nodes invoke --node "$NODE_MANAGER" \
-  --command "system.run" \
-  --params "{\"command\":\"curl -s http://127.0.0.1:9090/predictions/recent?limit=10\"}"
-
-echo "[$(date +%H:%M:%S)] === CAMPAGNE TERMINEE ==="
+echo ""
+echo "=== CAMPAGNE TERMINEE ==="
+echo "Alertes : $ALERTS"
+echo "Dossier : /tmp/campaign_$TIMESTAMP"
 ```
 
-### 10.2 Script : `lab-healthcheck.sh`
+### 11.2 Script : `lab-healthcheck.sh`
 
 ```bash
 #!/bin/bash
-# lab-healthcheck.sh — Vérification rapide du labo
+# lab-healthcheck.sh — Etat du labo en un coup d'oeil
 
-echo "========== LAB HEALTHCHECK =========="
-echo ""
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+PASS=0
+FAIL=0
 
-check_node() {
-  local name=$1
-  local result=$(openclaw nodes invoke --node "$name" \
-    --command "system.run" \
-    --params '{"command":"hostname && uptime -p && df -h / | tail -1"}' 2>&1)
-  local exitcode=$?
-  if [ $exitcode -eq 0 ]; then
-    echo "[OK] $name — $(echo "$result" | grep -oP '"stdout":"\K[^"]+' | head -1)"
+check() {
+  if [ $2 -eq 0 ]; then
+    echo -e "  ${GREEN}[OK]${NC} $1"
+    PASS=$((PASS+1))
   else
-    echo "[FAIL] $name — injoignable"
+    echo -e "  ${RED}[FAIL]${NC} $1"
+    FAIL=$((FAIL+1))
   fi
 }
 
-check_node "manager-wazuh"
-check_node "target-suricata"
-
+echo "========================================="
+echo "   LAB HEALTHCHECK — $(date '+%Y-%m-%d %H:%M')"
+echo "========================================="
 echo ""
-echo "========== END =========="
+
+# --- Gateway OpenClaw ---
+echo "[Gateway]"
+systemctl is-active openclaw-gateway >/dev/null 2>&1
+check "Service Gateway" $?
+curl -s -o /dev/null -w "" http://127.0.0.1:18789/ 2>/dev/null
+check "Port 18789 repond" $?
+
+# --- SSH Target ---
+echo "[Target (SSH)]"
+ssh -o ConnectTimeout=3 target "hostname" >/dev/null 2>&1
+check "SSH joignable" $?
+
+ssh target "sudo systemctl is-active suricata" >/dev/null 2>&1
+check "Suricata actif" $?
+
+ssh target "sudo docker info >/dev/null 2>&1"
+check "Docker fonctionnel" $?
+
+# --- ML Sidecar ---
+echo "[ML Pipeline]"
+systemctl is-active wazuh-inference >/dev/null 2>&1
+check "Inference Service" $?
+systemctl is-active wazuh-api >/dev/null 2>&1
+check "API Service" $?
+
+HEALTH=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9090/health 2>/dev/null)
+[ "$HEALTH" = "200" ]
+check "API ML (HTTP $HEALTH)" $?
+
+# --- Securite ---
+echo "[Securite]"
+sudo ufw status | grep -q "active"
+check "UFW actif" $?
+sudo ufw status | grep -q "192.168.30.1.*18789"
+check "Regle UI Windows OK" $?
+
+# --- Bilan ---
+echo ""
+echo "========================================="
+echo "   $PASS OK / $FAIL FAIL"
+echo "========================================="
+exit $FAIL
 ```
 
 ---
 
-## 11. Dépannage
+## 12. Depannage
 
-### 11.1 Le nœud ne se connecte pas
-
-```
-Symptôme : "openclaw node run" reste bloqué sur "Connecting..."
-           ou retourne "connection refused"
-```
-
-**Causes et solutions :**
-
-| Cause | Diagnostic | Solution |
-|-------|-----------|----------|
-| Portproxy Windows cassé | `netsh interface portproxy show all` | Reconfigurer avec la bonne IP WSL |
-| IP WSL changée | `ip addr show eth0` dans WSL | Mettre à jour le portproxy |
-| Firewall Windows bloque | `netsh advfirewall firewall show rule name="OpenClaw-*"` | Vérifier les règles |
-| Token invalide | Regarder les logs du nœud | `export OPENCLAW_GATEWAY_TOKEN="..."` |
-| Nœud pas approuvé | `openclaw devices list` sur Gateway | `openclaw devices approve <id>` |
-
-### 11.2 Le service ML ne démarre pas
+### 12.1 La Gateway ne demarre pas
 
 ```bash
-# Voir les logs
-sudo journalctl -u wazuh-inference -n 50 --no-pager
-sudo journalctl -u wazuh-api -n 50 --no-pager
+# Verifier les logs
+journalctl -u openclaw-gateway -n 50 --no-pager
 
-# Vérifier la base SQLite
-file /tmp/predictions.db
-# → doit dire "SQLite 3.x database"
-ls -la /tmp/predictions.db
-# → permissions 666
+# Verifier le port
+ss -tlnp | grep 18789
 
-# Tester le modèle
+# Verifier la config
+openclaw config validate
+```
+
+### 12.2 Pas de connexion Telegram
+
+```bash
+# Verifier le statut du channel
+openclaw channels status --probe
+
+# Si token invalide :
+openclaw config get channels.telegram.accounts.default.botToken
+# Recuperer un nouveau token depuis @BotFather
+openclaw config set channels.telegram.accounts.default.botToken "nouveau_token"
+openclaw gateway restart
+```
+
+### 12.3 SSH vers la Target ne marche pas
+
+```bash
+# Depuis le Manager, tester :
+ssh -v target "hostname" 2>&1 | tail -20
+# Si "Permission denied" : verifier authorized_keys sur Target
+# Si "Connection refused" : verifier UFW sur Target (sudo ufw status)
+# Si "Host key mismatch" : ssh-keygen -R 192.168.30.10
+```
+
+### 12.4 Le bot ne repond plus apres migration
+
+```bash
+# 1. Verifier que l'ancienne instance WSL est bien arretee
+#    (sinon les deux Gateways se battent pour le bot Telegram)
+
+# 2. Forcer la reconnexion Telegram
+openclaw gateway restart
+sleep 5
+openclaw channels status --probe
+
+# 3. Envoyer /start a @Maxime205_bot
+```
+
+### 12.5 UFW bloque tout (meme Windows)
+
+Si tu t'es verrouille :
+
+```bash
+# Depuis la console VirtualBox (ouverture directe)
+sudo ufw disable
+# Puis corriger les regles
+sudo ufw --force reset
+# Re-appliquer les bonnes regles
+```
+
+### 12.6 Le modele ML ne charge pas
+
+```bash
+# Verifier les fichiers
+ls -la /opt/wazuh-ml/xgb_model.json
 python3 -c "
 import json
 with open('/opt/wazuh-ml/xgb_model_metrics.json') as f:
@@ -843,100 +987,99 @@ with open('/opt/wazuh-ml/xgb_model_metrics.json') as f:
 print('Features:', len(m.get('feature_names', [])))
 print('ROC AUC:', m.get('roc_auc', 'N/A'))
 "
-```
 
-### 11.3 Réinitialisation complète d'un nœud
-
-```bash
-# Sur la VM
-openclaw node stop
-openclaw node uninstall
-rm -rf ~/.openclaw
-
-# Réinstaller
-curl -sL https://openclaw.ai/install.sh | bash
-openclaw node install --host 192.168.30.1 --port 18789 --display-name "manager-wazuh"
-openclaw node start
-```
-
-### 11.4 UFW bloquant Suricata
-
-Si Suricata arrête de voir du trafic après l'activation d'UFW :
-
-```bash
-# Vérifier que af-packet fonctionne (capture au niveau noyau)
-sudo suricata -T -c /etc/suricata/suricata.yaml
-
-# Suricata avec af-packet capte AVANT iptables,
-# donc UFW ne devrait pas bloquer.
-# Si problème : vérifier la config af-packet
-grep -A5 "af-packet" /etc/suricata/suricata.yaml
+# Redemarrer le service
+sudo systemctl restart wazuh-inference
+sleep 3
+sudo systemctl restart wazuh-api
+journalctl -u wazuh-inference -n 30 --no-pager
 ```
 
 ---
 
-## 12. Checklist de validation finale
+## 13. Checklist de validation finale
 
-### 12.1 Infrastructure réseau
-- [ ] Windows portproxy configuré (vérifié : `netsh interface portproxy show all`)
-- [ ] Firewall Windows bloque ParrotOS (règles verify : `netsh advfirewall firewall show rule name="OpenClaw-*"`)
+### 13.1 Infrastructure
 - [ ] Manager UFW actif et restrictif
 - [ ] Target UFW actif et restrictif
-- [ ] ParrotOS ne peut pas SSH/Mgr/API (vérifié avec un test)
+- [ ] ParrotOS bloque (verifie : ssh depuis ParrotOS echoue)
+- [ ] Windows peut acceder a Manager:18789
+- [ ] Manager peut SSH sans mot de passe sur Target
 
-### 12.2 Nœud Manager
-- [ ] OpenClaw installé (`openclaw --version`)
-- [ ] Nœud approuvé (`openclaw nodes list --connected`)
-- [ ] Service systemd installé (`openclaw node status` → running)
-- [ ] ML Inference service OK (`systemctl is-active wazuh-inference`)
-- [ ] ML API service OK (`systemctl is-active wazuh-api`)
-- [ ] API répond sur :9090 (`curl http://127.0.0.1:9090/health`)
-- [ ] Modèle XGBoost chargé (`curl http://127.0.0.1:9090/model/status`)
+### 13.2 Gateway OpenClaw
+- [ ] Gateway installee et running (`openclaw gateway status`)
+- [ ] Bot Telegram @Maxime205_bot connecte
+- [ ] Control UI accessible depuis Windows (`http://192.168.30.3:18789`)
+- [ ] `/ping` sur Telegram repond
 
-### 12.3 Nœud Target
-- [ ] OpenClaw installé (`openclaw --version`)
-- [ ] Nœud approuvé (`openclaw nodes list --connected`)
-- [ ] Service systemd installé (`openclaw node status` → running)
-- [ ] Suricata fonctionnel (`sudo suricata -T -c /etc/suricata/suricata.yaml`)
-- [ ] Docker fonctionnel (`sudo docker info --format '{{.ServerVersion}}'`)
+### 13.3 SSH Target
+- [ ] `ssh target hostname` retourne le bon hostname
+- [ ] `ssh target 'sudo whoami'` retourne "root"
+- [ ] `ssh target 'sudo docker ps'` fonctionne
+- [ ] `ssh target 'sudo suricata -T -c /etc/suricata/suricata.yaml'` OK
 
-### 12.4 Tests de communication
-- [ ] Ping Gateway → Manager (`openclaw nodes invoke --node "manager-wazuh" ...`)
-- [ ] Ping Gateway → Target (`openclaw nodes invoke --node "target-suricata" ...`)
-- [ ] Test echo (PONG) des deux nœuds
-- [ ] Manager peut joindre Target (ping 192.168.30.10)
-- [ ] Target peut joindre Manager (ping 192.168.30.3)
-- [ ] Communication API ML depuis la Target (`curl http://192.168.30.3:9090`)
+### 13.4 ML Pipeline
+- [ ] wazuh-inference actif
+- [ ] wazuh-api actif
+- [ ] `curl http://127.0.0.1:9090/health` retourne 200
+- [ ] Modele charge (`/model/status` → model_loaded: true)
+- [ ] Predictions accessibles (`/predictions/recent`)
 
-### 12.5 Pipeline complet
-- [ ] Le Gateway peut lancer une campagne sur la Target
-- [ ] Le Gateway peut collecter des alertes sur le Manager
-- [ ] Le Gateway peut interroger l'API ML
-- [ ] Script `lab-campaign.sh` s'exécute sans erreur
-- [ ] Script `lab-healthcheck.sh` retourne OK pour les deux nœuds
+### 13.5 Tests finaux
+- [ ] Demander a l'agent : "execute hostname sur la Target" → OK
+- [ ] Demander a l'agent : "quel est le statut du pipeline ML ?" → OK
+- [ ] Demander a l'agent : "lance une campagne de 60 secondes" → OK
+- [ ] Script `lab-healthcheck.sh` : tout vert
 
 ---
 
-## Annexe A : Références
+## Annexe A : References
 
-- [OpenClaw Docs — Node Host CLI](/cli/node)
-- [OpenClaw Docs — Nodes Management](/cli/nodes)
-- [OpenClaw Docs — Exec Tool](/tools/exec)
-- [OpenClaw Docs — Remote Access](/gateway/remote)
+- [OpenClaw Docs — Gateway Setup](/start/getting-started)
+- [OpenClaw Docs — Configuration reference](/gateway/configuration-reference)
+- [OpenClaw Docs — Telegram channel](/channels/telegram)
+- [OpenClaw Docs — Control UI](/web/control-ui)
 - [Projet GitHub — wazuh-test](https://github.com/maraa081/wazuh-test)
-- [Journal de bord](docs/JOURNAL_DE_BORD.md) — historique des problèmes
-- [Plan agents OpenClaw](docs/PLAN_AGENTS_OPENCLAW.md)
-- [Charte de développement](docs/DEVELOPMENT_CHARTER.md)
+- [Journal de bord](docs/JOURNAL_DE_BORD.md)
+- [Ancien plan agents OpenClaw](docs/PLAN_AGENTS_OPENCLAW.md)
+- [Charte de developpement](docs/DEVELOPMENT_CHARTER.md)
 
-## Annexe B : Fichiers associés dans ce repo
+## Annexe B : Architecture des repertoires
 
-| Fichier | Description |
-|---------|-------------|
-| `SETUP.md` | **(ce fichier)** Blueprint de déploiement |
-| `docs/DEPLOY_OPENCLAW_NODES.md` | Plan détaillé des nœuds (complément technique) |
-| `docs/PLAN_AGENTS_OPENCLAW.md` | Plan conceptuel original |
-| `docs/JOURNAL_DE_BORD.md` | Post-mortem des problèmes rencontrés |
-| `docs/DEVELOPMENT_CHARTER.md` | Charte MLOps |
-| `docs/DEPLOYMENT_NOTES.md` | Notes déploiement Suricata |
-| `scripts/` | Scripts d'automatisation |
-| `service/` | Fichiers systemd du sidecar ML |
+```
+Manager (~/.openclaw/)
+├── openclaw.json         # Configuration Gateway
+├── node.json             # (inutilise dans cette archi)
+├── sessions/             # Historique des conversations
+└── agents/
+    └── main/
+        └── agent/
+            └── auth-profiles.json
+
+Manager (/opt/wazuh-ml/)
+├── inference_service.py  # Service d'inference ML
+├── api_service.py        # API REST :9090
+├── xgb_model.json        # Modele entraine
+└── xgb_model_metrics.json # Metriques + features
+
+Manager (~/.ssh/)
+├── id_ed25519            # Cle privee (Manager -> Target)
+├── id_ed25519.pub        # Cle publique
+└── config                # Alias "target"
+
+Target (~/.ssh/)
+└── authorized_keys       # Contient la cle publique du Manager
+```
+
+## Annexe C : Comparaison des architectures
+
+| Criteres | Ancienne (WSL + Nodes) | Nouvelle (Manager + SSH) |
+|----------|----------------------|------------------------|
+| Nombre de machines | 3 (WSL + 2 VMs) | 2 (Manager + Target) |
+| Portproxy Windows | Oui (fragile) | NON (plus de dependance) |
+| IP variable WSL | Oui (reboot = casse) | NON (IP fixe) |
+| Compte Telegram | 1 bot | 1 bot (identique) |
+| Orchestration | Nodes natifs | SSH (tres stable) |
+| Complexite reseau | Haute | Faible |
+| Dashboard | WSL via proxy | Direct 192.168.30.3:18789 |
+| Securite ParrotOS | Portproxy a filtrer | UFW + loopback partiel |
