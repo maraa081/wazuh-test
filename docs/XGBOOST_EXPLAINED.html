@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XGBoost — Explication</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;color:#222;line-height:1.6;padding:30px 20px}
+.container{max-width:900px;margin:0 auto;background:white;border-radius:12px;padding:40px;box-shadow:0 2px 12px rgba(0,0,0,0.08)}
+h1{font-size:26px;margin-bottom:5px}
+.sub{color:#666;font-size:14px;margin-bottom:25px}
+h2{font-size:18px;margin:28px 0 10px;border-bottom:2px solid #eee;padding-bottom:5px}
+p{margin-bottom:12px;font-size:14px}
+.schema{text-align:center;margin:18px 0}
+.schema svg{max-width:100%;height:auto}
+.code{background:#f8f8f8;padding:12px 16px;border-radius:6px;font-family:monospace;font-size:13px;margin:10px 0;overflow-x:auto}
+.highlight{background:#eef7ff;padding:16px;border-radius:8px;margin:15px 0;font-size:14px}
+.highlight b{font-size:18px}
+table{width:100%;border-collapse:collapse;margin:12px 0}
+td,th{padding:8px 10px;text-align:left;border-bottom:1px solid #eee;font-size:13px}
+th{background:#2c3e50;color:white;font-weight:600}
+tr:nth-child(even){background:#f9f9f9}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>XGBoost expliqué simplement</h1>
+<p class="sub">eXtreme Gradient Boosting — le moteur du modèle Wazuh AI Filter</p>
+
+<!-- ============ 1. Principe ============ -->
+<h2>1. Le principe : des correcteurs en série</h2>
+<p>
+XGBoost, c'est une <b>bande d'arbres de décision qui bossent en équipe</b>.
+Mais pas en parallèle (random forest) : <b>en série</b>. Chaque nouvel arbre
+apprend des erreurs du précédent.
+</p>
+
+<div class="schema">
+<svg viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#3498db"/></marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#e74c3c"/></marker>
+    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3498db"/><stop offset="100%" stop-color="#2980b9"/></linearGradient>
+    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e67e22"/><stop offset="100%" stop-color="#d35400"/></linearGradient>
+    <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2ecc71"/><stop offset="100%" stop-color="#27ae60"/></linearGradient>
+  </defs>
+
+  <!-- Arbre 1 -->
+  <rect x="40" y="60" width="160" height="110" rx="10" fill="url(#g1)"/>
+  <text x="120" y="95" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Arbre 1</text>
+  <text x="120" y="115" text-anchor="middle" fill="white" font-size="11">Pred = 0.3</text>
+  <text x="120" y="135" text-anchor="middle" fill="white" font-size="11">Erreur: +0.2</text>
+  <text x="120" y="155" text-anchor="middle" fill="white" font-size="10">(sous-estime)</text>
+
+  <!-- Fleche 1 -->
+  <line x1="200" y1="100" x2="260" y2="80" stroke="#3498db" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="200" y1="130" x2="260" y2="150" stroke="#e74c3c" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-red)"/>
+  <text x="230" y="75" fill="#666" font-size="10">pred</text>
+  <text x="230" y="163" fill="#e74c3c" font-size="10">erreur</text>
+
+  <!-- Arbre 2 -->
+  <rect x="270" y="40" width="160" height="110" rx="10" fill="url(#g2)"/>
+  <text x="350" y="75" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Arbre 2</text>
+  <text x="350" y="95" text-anchor="middle" fill="white" font-size="11">Apprend I'erreur</text>
+  <text x="350" y="115" text-anchor="middle" fill="white" font-size="11">Correction: +0.15</text>
+  <text x="350" y="135" text-anchor="middle" fill="white" font-size="10">Pred = 0.45</text>
+
+  <!-- Fleche 2 -->
+  <line x1="430" y1="100" x2="490" y2="80" stroke="#3498db" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="430" y1="130" x2="490" y2="150" stroke="#e74c3c" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrow-red)"/>
+
+  <!-- Arbre 3 -->
+  <rect x="500" y="40" width="160" height="110" rx="10" fill="url(#g3)"/>
+  <text x="580" y="75" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Arbre 3</text>
+  <text x="580" y="95" text-anchor="middle" fill="white" font-size="11">Apprend I'erreur</text>
+  <text x="580" y="115" text-anchor="middle" fill="white" font-size="11">Correction: +0.04</text>
+  <text x="580" y="135" text-anchor="middle" fill="white" font-size="10">Pred = 0.49</text>
+
+  <!-- Fleche Resultat -->
+  <line x1="660" y1="95" x2="720" y2="95" stroke="#2c3e50" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Boite resultat -->
+  <rect x="725" y="65" width="70" height="60" rx="8" fill="#2c3e50"/>
+  <text x="760" y="95" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Score</text>
+  <text x="760" y="113" text-anchor="middle" fill="#f1c40f" font-size="14">0.49</text>
+</svg>
+</div>
+
+<p>
+Au début, le modèle prédit au hasard (0.3). Il compare avec la vraie valeur
+(0.5) et calcule l'<b>erreur</b>. L'arbre suivant apprend à corriger cette
+erreur. Et ainsi de suite, jusqu'à 300 arbres dans notre cas.
+</p>
+
+<div class="code">
+Prediction finale = Arbre1 + Arbre2 + Arbre3 + ... + Arbre300
+
+Avec notre labo : 300 arbres, profondeur max = 6 niveaux
+</div>
+
+<!-- ============ 2. Anatomie d'un arbre ============ -->
+<h2>2. À quoi ressemble un arbre ?</h2>
+<p>
+Chaque arbre prend une alerte en entrée et la fait descendre à travers des
+questions oui/non jusqu'à une feuille qui donne un score.
+</p>
+
+<div class="schema">
+<svg viewBox="0 0 720 520" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#27ae60"/></marker>
+    <marker id="an" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#e74c3c"/></marker>
+  </defs>
+
+  <!-- Racine -->
+  <rect x="260" y="15" width="200" height="50" rx="8" fill="#8e44ad"/>
+  <text x="360" y="38" text-anchor="middle" fill="white" font-size="13" font-weight="bold">count_rule_15min > 150 ?</text>
+  <text x="360" y="53" text-anchor="middle" fill="#ddd" font-size="10">Feature la plus importante</text>
+
+  <!-- Branche droite (OUI) -->
+  <line x1="460" y1="40" x2="540" y2="100" stroke="#27ae60" stroke-width="2" marker-end="url(#ay)"/>
+  <text x="510" y="75" fill="#27ae60" font-size="12" font-weight="bold">OUI</text>
+
+  <rect x="530" y="100" width="170" height="50" rx="8" fill="#3498db"/>
+  <text x="615" y="123" text-anchor="middle" fill="white" font-size="12">count_srcip_15min > 50 ?</text>
+  <text x="615" y="140" text-anchor="middle" fill="#ddd" font-size="10">Feature #2</text>
+
+  <!-- OUI -> feuille TP -->
+  <line x1="700" y1="125" x2="700" y2="180" stroke="#27ae60" stroke-width="1.5" marker-end="url(#ay)"/>
+  <rect x="648" y="185" width="105" height="45" rx="8" fill="#2ecc71"/>
+  <text x="700" y="210" text-anchor="middle" fill="white" font-size="12" font-weight="bold">TP: +0.25</text>
+  <text x="700" y="223" text-anchor="middle" fill="#ddd" font-size="9">attaque probable</text>
+
+  <!-- NON -> feuille FP -->
+  <line x1="530" y1="125" x2="455" y2="180" stroke="#e74c3c" stroke-width="1.5" marker-end="url(#an)"/>
+  <text x="480" y="163" fill="#e74c3c" font-size="11" font-weight="bold">NON</text>
+  <rect x="410" y="185" width="95" height="45" rx="8" fill="#e74c3c"/>
+  <text x="457" y="210" text-anchor="middle" fill="white" font-size="12" font-weight="bold">FP: -0.10</text>
+  <text x="457" y="223" text-anchor="middle" fill="#ddd" font-size="9">bruit</text>
+
+  <!-- Branche gauche (NON) -->
+  <line x1="260" y1="40" x2="130" y2="100" stroke="#e74c3c" stroke-width="2" marker-end="url(#an)"/>
+  <text x="190" y="75" fill="#e74c3c" font-size="12" font-weight="bold">NON</text>
+
+  <rect x="20" y="100" width="170" height="50" rx="8" fill="#e67e22"/>
+  <text x="105" y="123" text-anchor="middle" fill="white" font-size="12">rule_40704 active ?</text>
+  <text x="105" y="140" text-anchor="middle" fill="#ddd" font-size="10">Regle specifique</text>
+
+  <!-- OUI -> feuille TP -->
+  <line x1="190" y1="125" x2="190" y2="180" stroke="#27ae60" stroke-width="1.5" marker-end="url(#ay)"/>
+  <text x="175" y="163" fill="#27ae60" font-size="11" font-weight="bold">OUI</text>
+  <rect x="138" y="185" width="105" height="45" rx="8" fill="#2ecc71"/>
+  <text x="190" y="210" text-anchor="middle" fill="white" font-size="12" font-weight="bold">TP: +0.10</text>
+  <text x="190" y="223" text-anchor="middle" fill="#ddd" font-size="9">attaque possible</text>
+
+  <!-- NON -> feuille FP -->
+  <line x1="20" y1="125" x2="20" y2="180" stroke="#e74c3c" stroke-width="1.5" marker-end="url(#an)"/>
+  <rect x="0" y="185" width="95" height="45" rx="8" fill="#e74c3c"/>
+  <text x="47" y="210" text-anchor="middle" fill="white" font-size="12" font-weight="bold">FP: -0.05</text>
+  <text x="47" y="223" text-anchor="middle" fill="#ddd" font-size="9">bruit probable</text>
+
+  <!-- legende des scores -->
+  <text x="360" y="290" text-anchor="middle" fill="#666" font-size="12">Chaque feuille donne un score. La somme de tous les arbres = prediction finale.</text>
+  <text x="360" y="310" text-anchor="middle" fill="#666" font-size="12">Score > 0.5 → Attaque (TP) &nbsp;|&nbsp; Score < 0.5 → Faux positif (FP)</text>
+</svg>
+</div>
+
+<p>
+<b>Exemple concret :</b> une alerte arrive.
+L'arbre regarde d'abord si <code>count_rule_15min &gt; 150</code>
+(beaucoup d'alertes de ce type en peu de temps ?). Si oui, il descend à droite
+et check l'IP source. Si l'IP attaque aussi beaucoup → score TP = +0.25.
+Sinon, il regarde d'autres indices.
+</p>
+
+<!-- ============ 3. Les features ============ -->
+<h2>3. Ce qui compte le plus (Top 5 features)</h2>
+
+<table>
+<tr><th>Feature</th><th>Importance</th><th>Pourquoi c'est pertinent</th></tr>
+<tr><td>count_srcip_15min</td><td><b>39.9%</b></td><td>Si la même IP déclenche plein d'alertes en 15 min → attaque</td></tr>
+<tr><td>count_rule_15min</td><td><b>39.6%</b></td><td>Si la même règle se répète (ex: "SSH brute force") → attaque</td></tr>
+<tr><td>rule_40704</td><td><b>4.2%</b></td><td>Règle specifique Suricata qui signale un scan rapide</td></tr>
+<tr><td>srcip_type_lan</td><td><b>2.4%</b></td><td>IP en 192.168.30.x = LAN de confiance → moins suspect</td></tr>
+<tr><td>rule_5503</td><td><b>1.7%</b></td><td>Règle "Multiple SSH authentication failures" → typique hydra</td></tr>
+</table>
+
+<div class="highlight">
+<b>79.5%</b> de l'importance repose sur seulement <b>2 features</b> :
+la fréquence par IP et la fréquence par règle sur 15 minutes.
+XGBoost a appris tout seul que c'était les meilleurs indicateurs.
+</div>
+
+<!-- ============ 4. Comparaison ============ -->
+<h2>4. XGBoost vs les autres méthodes</h2>
+
+<table>
+<tr><th>Méthode</th><th>Notre Recall</th><th>Notre AUC</th><th>Pourquoi XGBoost gagne</th></tr>
+<tr><td>Régression logistique</td><td>~85%</td><td>~0.95</td><td>   </td></tr>
+<tr><td>Random Forest</td><td>~92%</td><td>~0.97</td><td>   </td></tr>
+<tr><td><b>XGBoost</b></td><td><b>96.3%</b></td><td><b>0.999</b></td><td>Gère les déséquilibres (28x plus de FP), apprend les motifs complexes de répétition</td></tr>
+</table>
+
+<p>
+XGBoost est le meilleur pour ce cas parce que :
+</p>
+<ul style="margin:10px 0 10px 20px;font-size:14px">
+<li>Il gère <b>naturellement les données déséquilibrées</b> (scale_pos_weight)</li>
+<li>Il capture les <b>interactions complexes</b> entre features (ex: heure + IP + règle)</li>
+<li>Il <b>passe à l'échelle</b> : 300 arbres, 36 features, 57 000 alertes → quelques secondes d'entraînement</li>
+<li>Les <b>prédictions sont rapides</b> : ~100 alertes/seconde en temps réel</li>
+</ul>
+
+<!-- ============ 5. Ce que ça donne dans le labo ============ -->
+<h2>5. Résultat concret sur le labo</h2>
+
+<div class="schema">
+<svg viewBox="0 0 700 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 Z" fill="#555"/></marker>
+  </defs>
+  
+  <!-- Input -->
+  <rect x="20" y="85" width="120" height="50" rx="8" fill="#8e44ad"/>
+  <text x="80" y="112" text-anchor="middle" fill="white" font-size="12" font-weight="bold">Alerte Wazuh</text>
+  <text x="80" y="126" text-anchor="middle" fill="#ddd" font-size="9">arrive en temps reel</text>
+
+  <line x1="140" y1="110" x2="200" y2="110" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- XGBoost -->
+  <rect x="205" y="60" width="140" height="100" rx="10" fill="#2c3e50"/>
+  <text x="275" y="95" text-anchor="middle" fill="#f1c40f" font-size="14" font-weight="bold">XGBoost</text>
+  <text x="275" y="112" text-anchor="middle" fill="white" font-size="10">300 arbres</text>
+  <text x="275" y="126" text-anchor="middle" fill="white" font-size="10">36 features</text>
+  <text x="275" y="140" text-anchor="middle" fill="#ddd" font-size="9">~100 alertes/sec</text>
+
+  <line x1="345" y1="110" x2="405" y2="110" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Score -->
+  <rect x="410" y="40" width="120" height="45" rx="8" fill="#2ecc71"/>
+  <text x="470" y="64" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Score TP > 0.5</text>
+  <text x="470" y="78" text-anchor="middle" fill="#ddd" font-size="9">Alerte remontee</text>
+
+  <line x1="530" y1="62" x2="560" y2="62" stroke="#555" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Dashboard -->
+  <rect x="565" y="35" width="120" height="40" rx="8" fill="#3498db"/>
+  <text x="625" y="60" text-anchor="middle" fill="white" font-size="12">Dashboard</text>
+
+  <!-- Score FP -->
+  <rect x="410" y="135" width="120" height="45" rx="8" fill="#e74c3c"/>
+  <text x="470" y="159" text-anchor="middle" fill="white" font-size="13" font-weight="bold">Score FP < 0.5</text>
+  <text x="470" y="173" text-anchor="middle" fill="#ddd" font-size="9">Filtre, pas de suite</text>
+
+  <line x1="410" y1="110" x2="470" y2="135" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="470" y1="135" x2="470" y2="110" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- Stats -->
+  <text x="360" y="210" text-anchor="middle" fill="#666" font-size="12">64 000+ predictions &nbsp;|&nbsp; Recall 96% &nbsp;|&nbsp; Temps reel</text>
+</svg>
+</div>
+
+<p>
+Quand une alerte Wazuh arrive, le modèle XGBoost :
+</p>
+<ol style="margin:10px 0 10px 20px;font-size:14px">
+<li>Extrait les 36 features de l'alerte</li>
+<li>Les fait passer à travers les 300 arbres</li>
+<li>Additionne les scores de chaque arbre → un score final entre 0 et 1</li>
+<li>Si score > 0.5 : c'est une attaque (TP), l'alerte n'est pas filtrée</li>
+<li>Si score < 0.5 : c'est du bruit (FP), l'alerte peut être ignorée</li>
+</ol>
+
+<p class="sub" style="margin-top:25px;text-align:center">
+Tout est open source sur <a href="https://github.com/maraa081/wazuh-test">github.com/maraa081/wazuh-test</a>
+</p>
+
+</div>
+</body>
+</html>
