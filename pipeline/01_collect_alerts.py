@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-01_collect_alerts.py — Collect alerts from local alerts.json and save as JSONL.
+01_collect_alerts.py — Collecte les alertes depuis alerts.json et les sauvegarde en JSONL.
 Usage:
   python3 01_collect_alerts.py
   python3 01_collect_alerts.py --output /tmp/dataset.jsonl
@@ -74,7 +74,7 @@ def collect_local_alerts(alerts_path: str, days: int = 1) -> list:
 
 
 def save_jsonl(alerts: list, output_path: str):
-    """Save alerts as JSONL."""
+    """Sauvegarde les alertes en JSONL."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
         for alert in alerts:

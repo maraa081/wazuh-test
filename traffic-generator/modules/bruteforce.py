@@ -1,15 +1,14 @@
-# SSH bruteforce module.
+# Module de bruteforce SSH.
 #
-# Uses hydra to attempt a small batch of failed logins against the target
-# SSH service. The username comes from config (a dedicated test account).
-# A mix of wrong and correct password attempts is sent so Wazuh sees
-# authentication failures mixed with occasional successes.
+# Utilise hydra pour tenter une petite serie d'echecs de connexion contre
+# le service SSH de la cible. Le nom d'utilisateur vient de la config
+# (un compte de test dedie). Un melange de mots de passe corrects et
+# incorrects est envoye pour que Wazuh voie des echecs d'authentification
+# melanges a des succes occasionnels.
 #
-# The burst is deliberately short: 10 to 30 attempts max, so the alert
-# volume stays realistic and does not overwhelm the Wazuh manager.
+# La rafale est deliberateument courte : 10 a 30 tentatives max, pour que
+# le volume d'alertes reste realiste et ne submerge pas le manager Wazuh.
 
-import subprocess
-import sys
 from datetime import datetime, timezone
 import random
 
@@ -19,9 +18,9 @@ from utils.logger import record_label, log_run
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """Run a short SSH bruteforce burst via hydra.
+    """Execute une courte rafale de bruteforce SSH via hydra.
 
-    Config keys used:
+    Cles de configuration utilisees :
         - target_ssh_port (int, default 22)
         - target_ssh_user (str)
         - target_ssh_pass (str)

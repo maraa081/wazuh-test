@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate charts from predictions DB + model metrics for presentation."""
+"""Genere des graphiques depuis la DB de predictions + metriques du modele pour la presentation."""
 
 import json
 import sqlite3
@@ -48,7 +48,7 @@ def load_predictions():
     return rows
 
 def chart_predictions_timeline(predictions, output):
-    """Line chart: predictions over time (TP vs FP)."""
+    """Graphique lineaire : predictions dans le temps (TP vs FP)."""
     if not predictions:
         return
     # Group by hour
@@ -82,7 +82,7 @@ def chart_predictions_timeline(predictions, output):
     print(f"[OK] Chart saved: {output}")
 
 def chart_prediction_distribution(predictions, output):
-    """Pie chart: TP vs FP distribution."""
+    """Camembert : distribution TP vs FP."""
     if not predictions:
         return
     tp = sum(1 for p in predictions if p.get("prediction") == 1)
@@ -98,7 +98,7 @@ def chart_prediction_distribution(predictions, output):
     print(f"[OK] Chart saved: {output}")
 
 def chart_score_distribution(predictions, output):
-    """Histogram: probability score distribution."""
+    """Histogramme : distribution des scores de probabilite."""
     if not predictions:
         return
     scores = [float(p.get("probability", 0.0)) for p in predictions if p.get("probability") is not None]
@@ -117,7 +117,7 @@ def chart_score_distribution(predictions, output):
     print(f"[OK] Chart saved: {output}")
 
 def chart_feature_importance(metrics, output):
-    """Horizontal bar chart: top feature importances."""
+    """Barres horizontales : top importances des features."""
     fi = metrics.get("feature_importance", {})
     if not fi:
         print("[WARN] No feature importance in metrics")
@@ -139,7 +139,7 @@ def chart_feature_importance(metrics, output):
     print(f"[OK] Chart saved: {output}")
 
 def chart_metrics_summary(metrics, output):
-    """Summary card with key metrics."""
+    """Carte resume avec les metriques cles."""
     fig, ax = plt.subplots(figsize=(8, 3))
     ax.axis("off")
     recall = metrics.get("recall", metrics.get("test_recall", "N/A"))
@@ -169,7 +169,7 @@ def chart_metrics_summary(metrics, output):
     print(f"[OK] Chart saved: {output}")
 
 def chart_roc_curve(metrics, output):
-    """Plot ROC curve from stored values if available."""
+    """Trace la courbe ROC a partir des valeurs stockees si disponibles."""
     fpr = metrics.get("roc_fpr", [])
     tpr = metrics.get("roc_tpr", [])
     if not fpr or not tpr:

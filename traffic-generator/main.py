@@ -1,17 +1,18 @@
-# Traffic generator orchestrator.
+# Orchestrateur du generateur de trafic.
 #
-# Reads a config file, then runs a random interleaving of benign and
-# malicious modules against a single target IP in your isolated lab.
-# Each module execution is logged to labels.csv and the raw output of
-# the underlying tools is saved to the logs/ directory for debugging.
+# Lit un fichier de config, puis execute un entrelacement aleatoire de modules
+# benins et malveillants contre une seule IP cible dans votre labo isole.
+# Chaque execution de module est enregistree dans labels.csv et la sortie brute
+# des outils sous-jacents est sauvegardee dans le dossier logs/ pour debogage.
 #
-# Usage:
+# Usage :
 #   cp config.yaml.example config.yaml
-#   # edit config.yaml to set your target IP and test account
+#   # editer config.yaml pour definir votre IP cible et compte de test
 #   python main.py --config config.yaml --duration 3600 --output labels.csv
 #
-# To stop early: Ctrl+C. The script exits cleanly without corrupting the
-# CSV file.
+# Pour arreter tot : Ctrl+C. Le script se termine proprement sans corrompre
+# le fichier CSV.
+#
 
 import argparse
 import random
@@ -20,11 +21,11 @@ import time
 from datetime import datetime, timezone
 
 # -------------------------------------------------------------------
-# Module registry
+# Registre des modules
 # -------------------------------------------------------------------
-# Each module exposes a run(target_ip, config, label_file) function that
-# returns True on success, False on failure. The rest of the orchestrator
-# does not care about what the module does internally.
+# Chaque module expose une fonction run(target_ip, config, label_file) qui
+# retourne True en cas de succes, False en cas d'echec. Le reste de
+# l'orchestrateur ne se soucie pas de ce que fait le module en interne.
 
 MALICIOUS_MODULES = [
     ("port_scan", "modules.port_scan"),

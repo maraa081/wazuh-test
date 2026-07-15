@@ -42,7 +42,7 @@ def fail(msg):
 
 
 def run_cmd(cmd, desc=""):
-    """Run a shell command and return output."""
+    """Execute une commande shell et retourne la sortie."""
     print(f"  $ {' '.join(cmd)}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -52,7 +52,7 @@ def run_cmd(cmd, desc=""):
 
 
 def fetch_labels_from_target():
-    """Copy labels.csv from Target via SSH."""
+    """Copie labels.csv depuis la cible via SSH."""
     step("ÉTAPE 0 : Récupération des labels depuis la Target")
     os.makedirs(LABELED_DIR, exist_ok=True)
 
@@ -75,7 +75,7 @@ def fetch_labels_from_target():
 
 
 def convert_labels_to_campaign_csv(labels_path):
-    """Convert traffic-generator labels.csv → Docker campaign format for 02_label_dataset.py"""
+    """Convertit labels.csv du generateur → format campagne Docker pour 02_label_dataset.py"""
     step("ÉTAPE 0b : Conversion labels → format campagne Docker")
 
     campaign_path = labels_path.replace("campaign_labels.csv", "campaign_docker_format.csv")
@@ -112,7 +112,7 @@ def convert_labels_to_campaign_csv(labels_path):
 
 
 def step01(days):
-    """Collect alerts from alerts.json"""
+    """Collecte les alertes depuis alerts.json"""
     step("ÉTAPE 1 : Collecte des alertes (01_collect_alerts.py)")
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     output = os.path.join(RAW_DIR, f"alerts_{ts}.jsonl")
@@ -134,7 +134,7 @@ def step01(days):
 
 
 def step02(alerts_path, campaign_path):
-    """Label dataset"""
+    """Labellise le dataset"""
     step("ÉTAPE 2 : Labellisation du dataset (02_label_dataset.py)")
     output = alerts_path.replace(".jsonl", "_labeled.csv")
 
@@ -153,7 +153,7 @@ def step02(alerts_path, campaign_path):
 
 
 def step03(labeled_path):
-    """Feature engineering"""
+    """Ingenierie des features"""
     step("ÉTAPE 3 : Feature engineering (03_feature_engineering.py)")
     output = os.path.join(FEATURES_DIR, "feature_matrix.csv")
     os.makedirs(FEATURES_DIR, exist_ok=True)
@@ -172,7 +172,7 @@ def step03(labeled_path):
 
 
 def step04(features_path):
-    """Train model"""
+    """Entraine le modele"""
     step("ÉTAPE 4 : Entraînement XGBoost (04_train_model.py)")
     os.makedirs(MODEL_DIR, exist_ok=True)
     model_path = os.path.join(MODEL_DIR, "xgb_model.json")
@@ -191,7 +191,7 @@ def step04(features_path):
 
 
 def step05(features_path, model_path):
-    """Evaluate model"""
+    """Evalue le modele"""
     step("ÉTAPE 5 : Évaluation du modèle (05_evaluate_model.py)")
     os.makedirs(REPORT_DIR, exist_ok=True)
 
@@ -211,7 +211,7 @@ def step05(features_path, model_path):
 
 
 def install_deps():
-    """Install missing Python packages."""
+    """Installe les paquets Python manquants."""
     step("[PRE] Vérification des dépendances")
     for pkg in ["xgboost", "scikit-learn", "shap", "matplotlib"]:
         r = subprocess.run(

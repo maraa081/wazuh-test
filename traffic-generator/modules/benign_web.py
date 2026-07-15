@@ -1,9 +1,4 @@
-# Benign web traffic module.
-#
-# Makes HTTP/HTTPS requests to the target as if a human were browsing a
-# few pages. The paths list can be customised in the config; the defaults
-# cover common web server endpoints that are unlikely to trigger Wazuh
-# rules but still produce access logs.
+# Module de trafic web benign.
 
 import subprocess
 import sys
@@ -40,7 +35,7 @@ DEFAULT_USER_AGENTS = [
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """Make a small batch of HTTP requests to the target.
+    """Effectue une petite serie de requetes HTTP vers la cible.
 
     Config keys used:
         - intensity.benign_web (int, requests per second)

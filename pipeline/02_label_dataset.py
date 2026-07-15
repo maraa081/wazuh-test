@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-02_label_dataset.py — Label collected alerts using campaign CSV windows.
+02_label_dataset.py — Labellise les alertes collectees avec les fenetres CSV de campagne.
 
 Usage:
   python3 02_label_dataset.py \\
@@ -22,7 +22,7 @@ def parse_iso(ts_str: str) -> datetime:
     ts_str = ts_str.strip()
     if ts_str.endswith("Z"):
         ts_str = ts_str[:-1] + "+00:00"
-    # Handle +0200 format
+    # Gestion du format +0200
     if "+" in ts_str[10:] and ":" not in ts_str[ts_str.index("+") :]:
         sign = "+" if "+" in ts_str[10:] else "-"
         parts = ts_str.split(sign)
@@ -33,7 +33,7 @@ def parse_iso(ts_str: str) -> datetime:
 
 
 def load_campaigns(campaign_path: str) -> list:
-    """Load campaign windows from CSV."""
+    """Charge les fenetres de campagne depuis un CSV."""
     campaigns = []
     with open(campaign_path) as f:
         reader = csv.DictReader(f)
@@ -50,7 +50,7 @@ def load_campaigns(campaign_path: str) -> list:
 
 
 def is_in_campaign(ts: datetime, campaigns: list) -> tuple:
-    """Check if a timestamp falls within any campaign window.
+    """Verifie si un timestamp tombe dans une fenetre de campagne.
     Returns (campaign_type, campaign_id) or (None, None)."""
     ts_ts = ts.timestamp()
     for c in campaigns:
@@ -70,7 +70,7 @@ def is_alert_scan(alert: dict) -> bool:
 
 
 def extract_srcip(alert: dict) -> str:
-    """Extract source IP from alert."""
+    """Extrait l'IP source de l'alerte."""
     for field in ["srcip", "src_ip", "data.srcip"]:
         parts = field.split(".")
         val = alert
@@ -85,7 +85,7 @@ def extract_srcip(alert: dict) -> str:
 
 
 def extract_features(alert: dict) -> dict:
-    """Extract feature fields from alert."""
+    """Extrait les champs de features de l'alerte."""
     r = alert.get("rule", {})
     a = alert.get("agent", {})
     d = alert.get("data", {})
@@ -105,7 +105,7 @@ def extract_features(alert: dict) -> dict:
 
 
 def label_dataset(alerts_path: str, campaigns: list, output_path: str):
-    """Label all alerts and write labeled CSV."""
+    """Labellise toutes les alertes et ecrit le CSV labellise."""
     print("--- Labeling ---")
 
     labeled = []
@@ -120,7 +120,7 @@ def label_dataset(alerts_path: str, campaigns: list, output_path: str):
             continue
         total += 1
 
-        # Parse timestamp
+        # Parse le timestamp
         try:
             ts_str = alert.get("timestamp", "")
             ts = parse_iso(ts_str)
@@ -131,10 +131,10 @@ def label_dataset(alerts_path: str, campaigns: list, output_path: str):
         camp_type, camp_id = is_in_campaign(ts, campaigns)
         is_scan = is_alert_scan(alert)
 
-        # Label logic:
-        # - If alert is within a malicious_* campaign → label = 1 (True Positive)
-        # - If alert is within a benign_* campaign → label = 0 (benign background)
-        # - If alert is outside any window → label = 0
+        # Logique de labellisation :
+        # - Si l'alerte est dans une campagne malicious_* → label = 1 (vrai positif)
+        # - Si l'alerte est dans une campagne benign_* → label = 0 (bruit de fond benign)
+        # - Si l'alerte est hors de toute fenetre → label = 0
         if camp_id:
             if camp_type.startswith("malicious_"):
                 label = 1  # True Positive: alert during malicious campaign

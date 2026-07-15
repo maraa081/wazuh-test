@@ -1,12 +1,12 @@
-# Exfiltration simulation module.
+# Module de simulation d'exfiltration.
 #
-# Generates a large dummy file locally and transfers it to the target via
-# SCP at a configurable rate. The goal is to produce a traffic pattern
-# that looks like a data exfiltration attempt: large outbound transfer,
-# unusual for normal user behaviour.
+# Genere un gros fichier factice en local et le transfere vers la cible via
+# SCP a un debit configurable. L'objectif est de produire un motif de trafic
+# qui ressemble a une tentative d'exfiltration de donnees : transfert sortant
+# volumineux, inhabituel pour un comportement utilisateur normal.
 #
-# The dummy file is created in /tmp and deleted after the transfer to
-# avoid filling up the Kali disk.
+# Le fichier factice est cree dans /tmp et supprime apres le transfert pour
+# ne pas remplir le disque de Kali.
 
 import subprocess
 import os
@@ -19,9 +19,9 @@ from utils.logger import record_label, log_run
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """SCP a large dummy file to the target.
+    """Copie un gros fichier factice sur la cible via SCP.
 
-    Config keys used:
+    Cles de configuration utilisees :
         - target_ssh_user (str)
         - target_ssh_pass (str)
         - intensity.exfiltration (int, MB/s)

@@ -1,17 +1,18 @@
-# Inference service: polling loop that scores new alerts.
+# Service d'inference : boucle de polling qui score les nouvelles alertes.
 #
-# This is the production component. It runs as a standalone service that:
+# C'est le composant de production. Il s'execute comme un service autonome qui :
 #
-#   1. Polls the Wazuh API at regular intervals for new alerts (based on the
-#      last processed alert timestamp, stored in the SQLite database).
-#   2. Extracts the same features used during model training, using the saved
-#      feature pipeline.
-#   3. Runs the trained XGBoost model to get a TP probability for each alert.
-#   4. Stores the prediction (alert ID, timestamp, TP probability, binary
-#      classification, feature values used) in a local SQLite database.
+#   1. Interroge l'API Wazuh a intervalles reguliers pour les nouvelles alertes
+#      (base sur le timestamp de la derniere alerte traitee, stocke en SQLite).
+#   2. Extrait les memes features que celles utilisees pendant l'entrainement,
+#      via le pipeline de features sauvegarde.
+#   3. Execute le modele XGBoost entraine pour obtenir une probabilite TP
+#      pour chaque alerte.
+#   4. Stocke la prediction (ID alerte, timestamp, probabilite TP,
+#      classification binaire, valeurs des features) dans une base SQLite locale.
 #
-# The service does not modify any Wazuh files. It is a read-only consumer of
-# the Wazuh API and a write-only producer for its own database.
+# Le service ne modifie aucun fichier Wazuh. C'est un consommateur read-only
+# de l'API Wazuh et un producteur write-only pour sa propre base de donnees.
 #
 # A separate FastAPI server (api.py) provides read access to the stored
 # predictions for dashboards and manual queries.

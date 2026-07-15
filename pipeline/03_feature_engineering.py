@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-03_feature_engineering.py — Transform labeled alerts into feature vectors.
-Reads dataset_labeled.csv, outputs features/feature_matrix.csv.
+03_feature_engineering.py — Transforme les alertes labellisees en vecteurs de features.
+Lit dataset_labeled.csv, produit features/feature_matrix.csv.
 """
 
 import argparse
@@ -24,7 +24,7 @@ def parse_ts(s):
 
 
 def load_dataset(path):
-    """Load labeled CSV."""
+    """Charge le CSV labellise."""
     rows = []
     with open(path) as f:
         for row in csv.DictReader(f):
@@ -33,7 +33,7 @@ def load_dataset(path):
 
 
 def build_features(rows):
-    """Build feature vectors for each alert."""
+    """Construit les vecteurs de features pour chaque alerte."""
     print(f"  Building features for {len(rows)} alerts...")
 
     # Pre-parse timestamps
@@ -159,7 +159,7 @@ def build_features(rows):
 
 
 def save_features(feature_rows, output_path):
-    """Save feature matrix as CSV."""
+    """Sauvegarde la matrice de features en CSV."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=feature_rows[0].keys())

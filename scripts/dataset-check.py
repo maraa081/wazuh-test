@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""dataset-check.py — Analyze dataset quality for ML readiness."""
+"""dataset-check.py — Analyse la qualite du dataset pour le ML."""
 
 import json, sys, os
 from collections import Counter

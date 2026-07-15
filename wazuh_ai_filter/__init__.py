@@ -1,2 +1,2 @@
-# Shared code for the Wazuh AI Filter pipeline.
-# Importing this package loads the config loader and any shared utilities.
+# Code partagé pour le pipeline Wazuh AI Filter.
+# Importer ce package charge le config loader et les utilitaires partagés.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-05_evaluate_model.py — Evaluate XGBoost with SHAP, curves, reports.
+05_evaluate_model.py — Evalue le XGBoost avec SHAP, courbes et rapports.
 Usage: python3 05_evaluate_model.py [--input features/feature_matrix.csv]
 """
 
@@ -20,7 +20,7 @@ REPORT_DIR = os.path.join(PROJECT_DIR, "reports")
 
 
 def load(path):
-    """Load feature matrix."""
+    """Charge la matrice de features."""
     import csv
     rows = list(csv.DictReader(open(path)))
     feature_names = [k for k in rows[0].keys() if k not in ("timestamp", "label")]
@@ -31,7 +31,7 @@ def load(path):
 
 
 def evaluate(model_path, X, y, feature_names, output_dir):
-    """Run evaluation: SHAP, curves, threshold tuning, report."""
+    """Execute l'evaluation : SHAP, courbes, reglage du seuil, rapport."""
     import xgboost as xgb
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import (
@@ -42,12 +42,12 @@ def evaluate(model_path, X, y, feature_names, output_dir):
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Split
+    # Separation train/test
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.25, random_state=42, stratify=y
     )
 
-    # Load model
+    # Chargement du modele
     model = xgb.XGBClassifier()
     model.load_model(model_path)
 
@@ -55,7 +55,7 @@ def evaluate(model_path, X, y, feature_names, output_dir):
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
 
-    # ── Metrics ──
+    # ── Metriques ──
     metrics = {
         "precision": round(precision_score(y_test, y_pred, zero_division=0), 4),
         "recall": round(recall_score(y_test, y_pred, zero_division=0), 4),
@@ -69,7 +69,7 @@ def evaluate(model_path, X, y, feature_names, output_dir):
     for k, v in metrics.items():
         print(f"    {k}: {v}")
 
-    # ── Threshold tuning ──
+    # ── Reglage du seuil ──
     precisions, recalls, thresholds = precision_recall_curve(y_test, y_proba)
     best_f2 = 0
     best_thresh = 0.5
@@ -87,7 +87,7 @@ def evaluate(model_path, X, y, feature_names, output_dir):
     metrics["best_threshold"] = round(best_thresh, 3)
     metrics["best_f2"] = round(best_f2, 4)
 
-    # ── Feature importance (from model) ──
+    # ── Importance des features (modele) ──
     importance = model.feature_importances_
     top_idx = np.argsort(importance)[-15:][::-1]
     top_features = []
@@ -97,7 +97,7 @@ def evaluate(model_path, X, y, feature_names, output_dir):
         bar = "|" * int(importance[idx] * 100)
         print(f"    {feature_names[idx]:<30} {importance[idx]:.4f}  {bar}")
 
-    # ── SHAP analysis ──
+    # ── Analyse SHAP ──
     print("\n  Computing SHAP values (this may take a moment)...")
     try:
         import shap
@@ -112,7 +112,7 @@ def evaluate(model_path, X, y, feature_names, output_dir):
         for idx in shap_top:
             print(f"    {feature_names[idx]:<30} mean|SHAP|={mean_shap[idx]:.4f}")
 
-        # Summary plot
+        # Graphique SHAP
         try:
             import matplotlib
             matplotlib.use("Agg")
@@ -143,13 +143,13 @@ def evaluate(model_path, X, y, feature_names, output_dir):
     except Exception as e:
         print(f"  SHAP error: {e}")
 
-    # ── Save report ──
+    # ── Sauvegarde du rapport ──
     report_path = os.path.join(output_dir, "evaluation_report.json")
     with open(report_path, "w") as f:
         json.dump(metrics, f, indent=2)
     print(f"\n  Report saved: {report_path}")
 
-    # ── Summary ──
+    # ── Resume ──
     print(f"\n  {'=' * 50}")
     print(f"  EVALUATION SUMMARY")
     print(f"  {'=' * 50}")
@@ -187,7 +187,7 @@ def main():
         print("Run 04_train_model.py first.")
         sys.exit(1)
 
-    # Load data
+    # Chargement des donnees
     print("--- Loading data ---")
     X, y, feature_names, timestamps = load(args.input)
     print(f"  Samples: {X.shape[0]}, Features: {X.shape[1]}")

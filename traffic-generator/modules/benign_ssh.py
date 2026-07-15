@@ -1,13 +1,4 @@
-# Benign SSH login module.
-#
-# Connects to the target via SSH as the test user, runs a few harmless
-# commands, and disconnects cleanly. This generates legit auth entries in
-# /var/log/auth.log on the target, which Wazuh picks up.
-#
-# The command list covers common sysadmin tasks that a real user would
-# run. Each login runs a random subset of 2 to 5 commands, and then
-# hangs up. This variation makes the traffic look human rather than a
-# scheduled health check.
+# Module de connexion SSH benine.
 
 import subprocess
 import sys
@@ -44,7 +35,7 @@ COMMANDS = [
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """SSH into the target and run some commands.
+    """SSH vers la cible et execute quelques commandes.
 
     Config keys used:
         - target_ssh_port (int, default 22)

@@ -1,11 +1,4 @@
-# Benign ICMP ping module.
-#
-# Sends a handful of pings to the target at realistic human-like intervals
-# (1-3 seconds apart, not flood rate). This generates baseline network
-# traffic without triggering any Wazuh scan detection rules.
-#
-# The number of pings per run is randomised between 3 and 10 to avoid
-# creating a perfectly predictable pattern in the dataset.
+# Module de ping ICMP benign.
 
 import subprocess
 import sys
@@ -19,7 +12,7 @@ from utils.logger import record_label, log_run
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """Ping the target a few times.
+    """Ping la cible quelques fois.
 
     Config keys used:
         - intensity.benign_icmp (int, packets per second)

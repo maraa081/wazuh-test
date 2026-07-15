@@ -1,13 +1,13 @@
-# DOS flood module.
+# Module de flooding DOS.
 #
-# Sends short bursts of traffic that look like a denial-of-service attempt
-# but are deliberately capped in duration and rate so the target stays
-# responsive. Three variants are available: SYN flood, ICMP echo flood,
-# and HTTP request flood.
+# Envoie de courtes rafales de trafic qui ressemblent a une tentative de
+# deni de service mais sont deliberateument limitees en duree et en debit
+# pour que la cible reste reactive. Trois variantes disponibles : flood SYN,
+# flood ICMP echo, et flood de requetes HTTP.
 #
-# The burst is never longer than burst.dos_seconds from config (default
-# 20 seconds). This is enough to trigger Wazuh reconnaissance/detection
-# rules without actually disrupting the target.
+# La rafale ne depasse jamais burst.dos_secondes depuis la config
+# (defaut 20 secondes). C'est suffisant pour declencher les regles de
+# detection/reconnaissance Wazuh sans perturber la cible.
 
 import subprocess
 import sys
@@ -50,9 +50,9 @@ VARIANTS = {
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """Run one DOS burst variant against the target.
+    """Execute une variante de rafale DOS contre la cible.
 
-    Config keys used:
+    Cles de configuration utilisees :
         - burst.dos_seconds (int, default 20)
         - intensity.dos_flood (int, packets/requests per second)
     """

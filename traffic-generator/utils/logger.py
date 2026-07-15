@@ -1,11 +1,11 @@
-# Standardised logging for the traffic generator.
+# Journalisation standardisee pour le generateur de trafic.
 #
-# Every module calls this to record what it did and to write execution logs
-# to a file so you can debug later.
+# Chaque module appelle ceci pour enregistrer ce qu'il a fait et ecrire les logs
+# d'execution dans un fichier pour debogage ulterieur.
 #
-# The labels.csv file is the key output: it pairs each traffic burst with a
-# timestamp window and a class label. You import this CSV into the Wazuh AI
-# Filter labeling pipeline to cross-reference with Wazuh alert timestamps.
+# Le fichier labels.csv est la sortie cle : il associe chaque burst de trafic a une
+# fenetre temporelle et un label de classe. Vous importez ce CSV dans le pipeline
+# de labellisation Wazuh AI Filter pour le croiser avec les timestamps d'alertes Wazuh.
 
 import csv
 import os
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 def record_label(label_class, module_name, tool_used, target_ip,
                  start_ts, end_ts, label_file="labels.csv",
                  extra_params=None):
-    """Append one row to the labels CSV file.
+    """Ajoute une ligne au fichier CSV de labels.
 
     Parameters
     ----------
@@ -62,7 +62,7 @@ def record_label(label_class, module_name, tool_used, target_ip,
 
 
 def log_run(module_name, log_dir="logs"):
-    """Return a context manager that captures stdout/stderr of a subprocess
+    """Retourne un gestionnaire de contexte qui capture stdout/stderr d'un sous-processus
     into a timestamped log file.
 
     Usage inside each module::

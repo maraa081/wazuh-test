@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Traffic generator — Docker campaign profiles.
-Profiles: benign_ssh, benign_dns, benign_http, benign_ping,
+Profils de conteneurs Docker pour la generation de dataset.
+Profile de campagne Docker.
+Profils : benign_ssh, benign_dns, benign_http, benign_ping,
           malicious (nmap + hydra).
 """
 
@@ -66,10 +67,10 @@ def random_ip_on_lan() -> str:
     return f"192.168.30.{o}"
 
 
-# ─── Profiles ──────────────────────────────────────────────────────
+# ─── Profils ────────────────────────────────────────────────────────
 
 def benign_ssh():
-    """SSH to Manager only."""
+    """SSH vers le Manager uniquement."""
     while True:
         user = random.choice(["vboxuser", "root", "admin"])
         run(["ssh", "-o", "StrictHostKeyChecking=no",
@@ -79,7 +80,7 @@ def benign_ssh():
 
 
 def benign_dns():
-    """DNS queries to public resolvers."""
+    """Requetes DNS vers les resolveurs publics."""
     while True:
         domain = random.choice(BENIGN_DOMAINS)
         dns = random.choice(DNS_SERVERS)
@@ -88,7 +89,7 @@ def benign_dns():
 
 
 def benign_http():
-    """HTTP(S) requests (including some that error)."""
+    """Requetes HTTP(S) (certaines generent des erreurs)."""
     while True:
         url = random.choice(BENIGN_URLS_ALL)
         run(["curl", "-s", "-o", "/dev/null",
@@ -97,7 +98,7 @@ def benign_http():
 
 
 def benign_ping():
-    """ICMP echo to various targets."""
+    """Echo ICMP vers differentes cibles."""
     while True:
         target = random.choice([
             random_ip_on_lan(),
@@ -109,7 +110,7 @@ def benign_ping():
 
 
 def benign_ftp():
-    """FTP connection attempts (will fail, but generates traffic)."""
+    """Tentatives de connexion FTP (echouent, mais generent du trafic)."""
     while True:
         run(["curl", "-s", "-o", "/dev/null",
              "--connect-timeout", "3",
@@ -118,7 +119,7 @@ def benign_ftp():
 
 
 def benign_smb():
-    """SMB connection attempt (netbios)."""
+    """Tentative de connexion SMB (netbios)."""
     while True:
         run(["curl", "-s", "-o", "/dev/null",
              "--connect-timeout", "3",
@@ -127,7 +128,7 @@ def benign_smb():
 
 
 def malicious():
-    """5 cycles: nmap + hydra on all targets."""
+    """5 cycles : nmap + hydra sur toutes les cibles."""
     my_ip = get_my_ip()
     for cycle in range(8):
         # 1) Scan Docker subnet (all containers)

@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-api_service.py — REST API for querying ML predictions.
-Runs on port 9090. Callable from Wazuh Dashboard or any HTTP client.
+api_service.py — API REST pour interroger les predictions ML.
+Tourne sur le port 9090. Appelable depuis le dashboard Wazuh ou tout client HTTP.
 
-Endpoints:
-  GET  /health              → OK if service is alive
-  GET  /stats               → Summary statistics (TP/FP counts)
-  GET  /predictions         → Paginated predictions list
-  GET  /predictions/{id}    → Single prediction by alert_id
-  GET  /predictions/recent  → Last 50 predictions
+Endpoints :
+  GET  /health              → OK si le service est vivant
+  GET  /stats               → Statistiques resume (compteurs TP/FP)
+  GET  /predictions         → Liste paginee des predictions
+  GET  /predictions/{id}    → Prediction unique par alert_id
+  GET  /predictions/recent  → 50 dernieres predictions
 
-Usage:
+Usage :
   python3 api_service.py [--db predictions.db] [--port 9090] [--host 0.0.0.0]
 
-Update-Proof:
-  - No dependency on Wazuh files or configs
-  - Only reads its own SQLite database
-  - Survives any Wazuh update
+Resistant aux mises a jour :
+  - Aucune dependance aux fichiers ou configs Wazuh
+  - Lit uniquement sa propre base SQLite
+  - Survit a toute mise a jour Wazuh
 """
 
 import argparse

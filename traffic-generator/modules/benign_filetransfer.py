@@ -1,11 +1,4 @@
-# Benign file transfer module.
-#
-# Transfers a small file to and from the target via SCP/SFTP. This
-# simulates routine administrative tasks like copying config files or
-# collecting logs. The file is generated in /tmp and deleted afterwards.
-#
-# Unlike the exfiltration module, the file here is small (1-5 MB) and
-# the transfer is bidirectional: upload to target then download back.
+# Module de transfert de fichier benign.
 
 import subprocess
 import os
@@ -19,7 +12,7 @@ from utils.logger import record_label, log_run
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """SCP a small file to and from the target.
+    """Copie un petit fichier vers et depuis la cible via SCP.
 
     Only runs if sshpass is installed, since we need non-interactive auth
     for the test account.

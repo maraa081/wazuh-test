@@ -1,23 +1,22 @@
-# Port scan module.
+# Module de scan de ports.
 #
-# Runs nmap against the target using different scan types to generate
-# alertable reconnaissance activity. The three variants cover the most
-# common Wazuh detection rules (531-540 range).
+# Lance nmap contre la cible avec differents types de scan pour generer
+# une activite de reconnaissance detectable. Les trois variantes couvrent
+# les regles de detection Wazuh les plus courantes (plage 531-540).
 #
-# Each variant runs once per call: repeated scans would look like an
-# actual attack rather than noise.
+# Chaque variante s'execute une fois par appel : des scans repetes
+# ressembleraient a une veritable attaque plutot qu'a du bruit.
 
 import subprocess
 import sys
 from datetime import datetime, timezone
 
-# Add project root to path so utils can be imported when run standalone.
 sys.path.insert(0, "..")
 
 from utils.logger import record_label, log_run
 
 
-# Three scan profiles that Wazuh picks up differently.
+# Trois profils de scan que Wazuh detecte differemment.
 SCAN_VARIANTS = [
     {"name": "syn_scan", "args": ["-sS", "-T4", "--max-rtt-timeout", "500ms"]},
     {"name": "full_scan", "args": ["-sT", "-T3"]},
@@ -26,57 +25,59 @@ SCAN_VARIANTS = [
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """Run one nmap scan variant and log the result.
+    """Execute une variante de scan nmap et enregistre le resultat.
 
-    Picks a random variant each time to keep the dataset diverse. The
-    intensity config value is ignored for scanning: one pass is sufficient
-    to trigger Wazuh, and multiple passes would just be redundant noise.
+    Choisit une variante aleatoire a chaque fois pour diversifier le dataset.
+    La valeur d'intensite dans la config est ignoree pour le scan : un seul
+    passage suffit a declencher Wazuh, des passages multiples ne feraient
+    qu'ajouter du bruit redondant.
 
-    Returns True on success, False on failure.
+    Retourne True en cas de succes, False en cas d'echec.
     """
     import random
-
     variant = random.choice(SCAN_VARIANTS)
+    name = variant["name"]
+    extra_args = variant["args"]
+
+    cmd = ["nmap"] + extra_args + [target_ip]
+
     start_ts = datetime.now(timezone.utc)
     logfile = log_run("port_scan")
 
     try:
-        cmd = ["nmap"] + variant["args"] + [target_ip]
-        subprocess.run(cmd, stdout=logfile, stderr=logfile,
-                       timeout=120, check=False)
-    except FileNotFoundError:
-        print("  [WARN] nmap not installed. Install with: sudo apt install nmap")
-        return False
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=120
+        )
+        success = result.returncode == 0
     except subprocess.TimeoutExpired:
-        print(f"  [WARN] nmap {variant['name']} timed out")
-    except Exception as e:
-        print(f"  [ERROR] nmap {variant['name']}: {e}")
+        with open(logfile, "a") as f:
+            f.write(f"[{start_ts.isoformat()}] TIMEOUT: {' '.join(cmd)}\n")
         return False
-    finally:
-        logfile.close()
+    except Exception as e:
+        with open(logfile, "a") as f:
+            f.write(f"[{start_ts.isoformat()}] ERROR: {e}\n")
+        return False
 
     end_ts = datetime.now(timezone.utc)
 
+    # Enregistrer dans labels.csv
+    extra = {"scan_variant": name, "nmap_args": " ".join(extra_args)}
     record_label(
-        label_class="port_scan",
-        module_name="port_scan",
-        tool_used="nmap",
-        target_ip=target_ip,
-        start_ts=start_ts,
-        end_ts=end_ts,
-        label_file=label_file,
-        extra_params={"scan_variant": variant["name"]},
+        start_ts, end_ts, "port_scan", "port_scan", "nmap",
+        target_ip, label_file, extra
     )
 
-    print(f"  port scan ({variant['name']}) -> {target_ip}  OK")
-    return True
+    with open(logfile, "a") as f:
+        f.write(f"[{start_ts.isoformat()}] {' '.join(cmd)}\n")
+        f.write(f"    -> {'OK' if success else 'FAIL'} (rc={result.returncode})\n")
+
+    return success
 
 
-# Allow standalone run for debugging.
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--target", required=True)
-    parser.add_argument("--out", default="labels.csv")
-    args = parser.parse_args()
-    run(args.target, {}, label_file=args.out)
+    import json
+    with open("config.yaml") as f:
+        import yaml
+        cfg = yaml.safe_load(f)
+    run(cfg["target_ip"], cfg, label_file="/tmp/test_scan.csv")
+    print("OK")

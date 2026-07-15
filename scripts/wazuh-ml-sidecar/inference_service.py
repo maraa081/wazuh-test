@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
 inference_service.py — Wazuh ML Sidecar
-Monitors alerts.json in real-time, runs XGBoost inference, stores in SQLite.
+Surveille alerts.json en temps reel, execute l'inference XGBoost, stocke en SQLite.
 
-Architecture:
-  alerts.json (tail -f) → feature extraction → XGBoost → SQLite
+Architecture :
+  alerts.json (tail -f) → extraction de features → XGBoost → SQLite
                                                           ↓
                                                     API (port 9090)
 
-Usage:
+Usage :
   python3 inference_service.py [--alert-file /var/ossec/logs/alerts/alerts.json]
                                [--model models/xgb_model.json]
                                [--db predictions.db]
 
-Update-Proof:
-  - Does NOT modify any Wazuh file
-  - Does NOT touch ossec.conf or Filebeat config
-  - Reads alerts.json in read-only mode
-  - Survives Wazuh updates (only the parser might need update)
+Resistant aux mises a jour :
+  - Ne modifie AUCUN fichier Wazuh
+  - Ne touche pas a ossec.conf ni a la config Filebeat
+  - Lit alerts.json en mode read-only
+  - Survit aux mises a jour Wazuh (seul le parser pourrait necessiter une MAJ)
 """
 
 import argparse
@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-# ─── Paths ────────────────────────────────────────────────────────
+# ─── Chemins ────────────────────────────────────────────────────────
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_ALERT_FILE = "/var/ossec/logs/alerts/alerts.json"
 DEFAULT_MODEL_FILE = os.path.join(PROJECT_DIR, "models", "xgb_model.json")
@@ -39,10 +39,10 @@ DEFAULT_METRICS_FILE = os.path.join(PROJECT_DIR, "models", "xgb_model_metrics.js
 DEFAULT_DB_FILE = os.path.join(PROJECT_DIR, "data", "predictions", "predictions.db")
 
 
-# ─── Database ─────────────────────────────────────────────────────
+# ─── Base de donnees ─────────────────────────────────────────────────
 
 def init_db(db_path):
-    """Create predictions table if not exists."""
+    """Cree la table des predictions si elle n'existe pas."""
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("""
@@ -71,7 +71,7 @@ def init_db(db_path):
 
 def store_prediction(conn, alert_id, timestamp, rule_id, rule_desc, agent, srcip,
                      prediction, confidence, features):
-    """Insert or update a prediction in SQLite."""
+    """Insere ou met a jour une prediction dans SQLite."""
     conn.execute("""
         INSERT OR REPLACE INTO predictions
         (alert_id, timestamp, rule_id, rule_description, agent_name, srcip,
@@ -94,7 +94,7 @@ def store_prediction(conn, alert_id, timestamp, rule_id, rule_desc, agent, srcip
 # ─── Model loading ────────────────────────────────────────────────
 
 def load_model(model_path, metrics_path=None):
-    """Load XGBoost model and feature names from metrics."""
+    """Charge le modele XGBoost et les noms de features depuis les metriques."""
     import xgboost as xgb
 
     if not os.path.exists(model_path):

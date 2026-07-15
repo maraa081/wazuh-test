@@ -1,13 +1,4 @@
-# Benign DNS query module.
-#
-# Sends dig queries to either the target (if it runs a DNS server) or to
-# public resolvers for a handful of popular domains. The domain list is
-# curated to include a mix of CDN, tech, and local network entries to
-# make the traffic look like real user activity.
-#
-# If the target is not a DNS server, the queries go to 1.1.1.1 or
-# 8.8.8.8. In a fully isolated lab without internet, configure
-# use_public_resolvers: false and the module does nothing.
+# Module de requetes DNS benignes.
 
 import subprocess
 import sys
@@ -42,7 +33,7 @@ RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT"]
 
 
 def run(target_ip, config, label_file="labels.csv"):
-    """Query a handful of random domains with dig.
+    """Interroge quelques domaines aleatoires avec dig.
 
     Config keys used:
         - intensity.benign_dns (int, queries per second)

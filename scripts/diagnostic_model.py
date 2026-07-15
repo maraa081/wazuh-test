@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Diagnostic: retrain XGBoost from feature matrix and test predictions."""
+"""Diagnostic : re-entraine XGBoost depuis la matrice de features et teste les predictions."""
 import json, csv, xgboost as xgb, numpy as np
 from sklearn.model_selection import train_test_split
 

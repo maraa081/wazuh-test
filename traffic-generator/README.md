@@ -1,74 +1,76 @@
-# Traffic Generator for Wazuh AI Filter Dataset
+# Générateur de trafic pour le dataset Wazuh AI Filter
 
-Generates a labeled multi-class traffic dataset for training a Wazuh alert
-classifier. Runs from **Kali Linux** (or any Linux machine with the right
-tools) and targets a single lab machine with a Wazuh agent. The output is a
-CSV file with timestamp windows and class labels, designed to be fed into
-the Wazuh AI Filter labeling pipeline.
+Génère un dataset de trafic multi-classe labellisé pour entraîner un
+classifieur d'alertes Wazuh. S'exécute depuis **Kali Linux** (ou toute
+machine Linux avec les bons outils) et cible une seule machine de labo
+avec un agent Wazuh. La sortie est un fichier CSV avec des fenêtres
+temporelles et des labels de classe, conçu pour alimenter le pipeline
+de labellisation Wazuh AI Filter.
 
-**WARNING:** This tool is designed exclusively for isolated lab environments
-(VirtualBox, VMware, air-gapped networks). Never run it against a machine you
-do not own or on a production network.
+**ATTENTION :** Cet outil est conçu exclusivement pour des environnements
+de labo isolés (VirtualBox, VMware, réseaux air-gapped). Ne jamais
+l'exécuter contre une machine qui ne vous appartient pas ou sur un
+réseau de production.
 
-## Dependencies
+## Dépendances
 
-### System packages (install on Kali before first run)
+### Paquets système (à installer sur Kali avant la première exécution)
 
 ```
 sudo apt update
 sudo apt install -y nmap hydra hping3 sshpass dnsutils curl openssh-client
 ```
 
-### Python packages (minimal)
+### Paquets Python (minimaux)
 
 ```
 pip install -r requirements.txt
 ```
 
-Only `pyyaml` is needed; everything else is a standard system tool.
+Seul `pyyaml` est nécessaire ; tout le reste est un outil système standard.
 
-## Setup
+## Configuration
 
-1. Copy the example config:
+1. Copier le fichier de configuration exemple :
 
    ```bash
    cp config.yaml.example config.yaml
    ```
 
-2. Edit `config.yaml` and set:
+2. Éditer `config.yaml` et définir :
 
-   - `target_ip` -- the IP of your lab target machine (single IP, never a range)
-   - `target_ssh_user` / `target_ssh_pass` -- a dedicated test account on the target
-   - `total_duration_seconds` -- how long each session runs (0 for no limit)
-   - `benign_ratio` -- proportion of benign vs malicious traffic (default 0.7)
+   - `target_ip` — l'IP de votre machine cible du labo (IP unique, jamais une plage)
+   - `target_ssh_user` / `target_ssh_pass` — un compte de test dédié sur la cible
+   - `total_duration_seconds` — durée de chaque session (0 pour pas de limite)
+   - `benign_ratio` — proportion de trafic bénin vs malveillant (défaut 0.7)
 
-3. (Optional) Create a `testuser` account on the target machine:
+3. (Optionnel) Créer un compte `testuser` sur la machine cible :
 
    ```bash
    sudo useradd -m testuser
    sudo passwd testuser
    ```
 
-4. Verify you can reach the target:
+4. Vérifier que vous pouvez atteindre la cible :
 
    ```bash
-   ping -c 3 <target_ip>
+   ping -c 3 <ip_cible>
    ```
 
-## Usage
+## Utilisation
 
 ```bash
 python main.py --config config.yaml --duration 3600 --output labels.csv
 ```
 
-- `--duration` : total run time in seconds (default 3600 = 1 hour)
-- `--output`  : path to the labels CSV that gets appended to
+- `--duration` : durée totale d'exécution en secondes (défaut 3600 = 1 heure)
+- `--output`  : chemin du fichier CSV de labels (les données sont ajoutées)
 
-Stop early with Ctrl+C. The CSV file is not corrupted on interruption.
+Arrêter avec Ctrl+C. Le fichier CSV n'est pas corrompu par une interruption.
 
-### Standalone module execution (debug)
+### Exécution autonome d'un module (debug)
 
-Each module can run independently:
+Chaque module peut s'exécuter indépendamment :
 
 ```bash
 python modules/port_scan.py --target 192.168.1.100 --out test.csv
@@ -76,77 +78,77 @@ python modules/benign_ssh.py --target 192.168.1.100 --out test.csv
 python modules/bruteforce.py --target 192.168.1.100 --out test.csv
 ```
 
-## Output format: labels.csv
+## Format de sortie : labels.csv
 
-| Column              | Content                                          |
+| Colonne             | Contenu                                          |
 |---------------------|--------------------------------------------------|
-| timestamp_start_iso | UTC start of the traffic burst (ISO 8601)         |
-| timestamp_end_iso   | UTC end of the traffic burst (ISO 8601)           |
-| label_class         | One of the 9 class labels (see below)             |
-| module_name         | Python module that generated the entry            |
-| tool_used           | System tool invoked (nmap, hydra, curl, etc.)     |
-| target_ip           | Target IP (always the same for a given session)   |
-| extra columns       | Variant-specific info (scan type, file size, etc.)|
+| timestamp_start_iso | Début UTC du burst de trafic (ISO 8601)          |
+| timestamp_end_iso   | Fin UTC du burst de trafic (ISO 8601)            |
+| label_class         | Un des 9 labels de classe (voir ci-dessous)      |
+| module_name         | Module Python qui a généré l'entrée              |
+| tool_used           | Outil système invoqué (nmap, hydra, curl, etc.)  |
+| target_ip           | IP cible (toujours la même pour une session)     |
+| colonnes suppl.     | Infos spécifiques (type de scan, taille, etc.)   |
 
-### Class labels
+### Labels de classe
 
-| Label               | Category  | Description                          |
-|---------------------|-----------|--------------------------------------|
-| port_scan           | malicious | Nmap scan (SYN/full/aggressive)      |
-| bruteforce          | malicious | SSH password guessing via hydra       |
-| dos_flood           | malicious | Short burst DOS (SYN/ICMP/HTTP)       |
-| exfiltration        | malicious | Large file SCP transfer               |
-| benign_web          | benign    | HTTP requests to target web server    |
-| benign_dns          | benign    | DNS queries to common domains         |
-| benign_icmp         | benign    | Normal ping packets                   |
-| benign_filetransfer | benign    | Small file SCP up and down            |
-| benign_ssh          | benign    | Legit SSH login with commands         |
+| Label               | Catégorie    | Description                          |
+|---------------------|-------------|--------------------------------------|
+| port_scan           | malveillant | Scan Nmap (SYN/complet/agressif)     |
+| bruteforce          | malveillant | Tentative SSH par hydra              |
+| dos_flood           | malveillant | Burst DOS court (SYN/ICMP/HTTP)      |
+| exfiltration        | malveillant | Transfert SCP de gros fichier        |
+| benign_web          | bénin       | Requêtes HTTP vers le serveur cible  |
+| benign_dns          | bénin       | Requêtes DNS vers domaines courants  |
+| benign_icmp         | bénin       | Paquets ping normaux                 |
+| benign_filetransfer | bénin       | Transfert SCP de petit fichier       |
+| benign_ssh          | bénin       | Connexion SSH légitime + commandes   |
 
 ## Architecture
 
 ```
-main.py (orchestrator)
+main.py (orchestrateur)
   |
-  |-- picks module (70% benign / 30% malicious)
-  |-- randomises pause between 5-30s
-  |-- runs module -> records in labels.csv + logs/
+  |-- choisit un module (70% bénin / 30% malveillant)
+  |-- pause aléatoire entre 5 et 30s
+  |-- exécute le module -> enregistre dans labels.csv + logs/
   |
   modules/
   |-- port_scan.py       (nmap -sS / -sT / -A)
-  |-- bruteforce.py       (hydra)
-  |-- dos_flood.py        (hping3 / curl)
-  |-- exfiltration.py     (scp -- large file)
-  |-- benign_web.py       (curl)
-  |-- benign_dns.py       (dig)
-  |-- benign_icmp.py      (ping)
-  |-- benign_filetransfer.py (scp -- small file)
-  |-- benign_ssh.py       (ssh + commands)
+  |-- bruteforce.py      (hydra)
+  |-- dos_flood.py       (hping3 / curl)
+  |-- exfiltration.py    (scp -- gros fichier)
+  |-- benign_web.py      (curl)
+  |-- benign_dns.py      (dig)
+  |-- benign_icmp.py     (ping)
+  |-- benign_filetransfer.py (scp -- petit fichier)
+  |-- benign_ssh.py      (ssh + commandes)
   |
   utils/
-  |-- logger.py           (CSV writer + log file handler)
+  |-- logger.py          (écriture CSV + gestion des logs)
   |
   logs/
-  |-- (per-module stdout/stderr dumps)
+  |-- (sorties stdout/stderr par module)
 ```
 
-The orchestrator does not care what individual modules do. It only knows the
-benign/malicious split and the pause ranges. Each module is self-contained and
-can be run in isolation for debugging.
+L'orchestrateur ne se soucie pas de ce que font les modules individuellement.
+Il ne connaît que la répartition bénin/malveillant et les plages de pause.
+Chaque module est autonome et peut être exécuté isolément pour le débogage.
 
-## How this feeds into the Wazuh AI Filter
+## Comment cela alimente le Wazuh AI Filter
 
-1. Run the traffic generator on Kali (or whatever machine generates your attacks).
-2. The generated traffic triggers Wazuh alerts on the target machine.
-3. The Wazuh manager stores the alerts in `/var/ossec/logs/alerts/alerts.json`.
-4. The Wazuh AI Filter pipeline reads that JSON file, cross-references alert
-   timestamps with labels.csv, and labels each alert as TP or FP.
-5. The model is trained on the resulting labeled dataset.
+1. Exécuter le générateur de trafic sur Kali (ou la machine qui génère vos attaques).
+2. Le trafic généré déclenche des alertes Wazuh sur la machine cible.
+3. Le manager Wazuh stocke les alertes dans `/var/ossec/logs/alerts/alerts.json`.
+4. Le pipeline Wazuh AI Filter lit ce fichier JSON, croise les timestamps
+   des alertes avec labels.csv, et labellise chaque alerte en TP ou FP.
+5. Le modèle est entraîné sur le dataset labellisé résultant.
 
-## Security notes
+## Notes de sécurité
 
-- The traffic generator never scans IP ranges, never uses --random-targets,
-  and never sends traffic outside the configured target_ip.
-- DOS bursts are capped at 20 seconds and limited to configurable low rates
-  to avoid actually denying service to the target.
-- All credentials are read from a local config file (gitignored). Use a
-  throwaway test account on the target, never real credentials.
+- Le générateur de trafic ne scanne jamais de plages IP, n'utilise jamais
+  --random-targets, et n'envoie jamais de trafic en dehors de l'IP cible configurée.
+- Les bursts DOS sont limités à 20 secondes avec des débits bas configurables
+  pour éviter de réellement dénier le service à la cible.
+- Tous les identifiants sont lus depuis un fichier de config local (gitignoré).
+  Utiliser un compte de test jetable sur la cible, jamais de vrais identifiants.
