@@ -67,7 +67,7 @@ CV_CONFIG = {"base_template_path": CV_DIR / "cv_base.txt", "adaptable_sections":
 
 DATABASE_CONFIG = {"path": DATA_DIR / "jobs.db", "backup_frequency": "daily", "cleanup_old_jobs_days": 90, "export_formats": ["csv", "excel"]}
 
-LOGGING_CONFIG = {"level": "INFO", "file_path": LOGS_DIR / "job_automation.log", "max_file_size_mb": 10, "backup_count": 5}
+LOGGING_CONFIG = {"level": "INFO", "file_path": LOGS_DIR / "job_automation.log", "max_file_size_mb": 10, "backup_count": 5, "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}
 
 SELENIUM_CONFIG = {"headless": False, "window_size": (1920, 1080), "implicit_wait": 10, "page_load_timeout": 30}
 
