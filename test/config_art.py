@@ -14,11 +14,11 @@ CV_DIR = BASE_DIR / "templates"
 for directory in [DATA_DIR, LOGS_DIR]:
     directory.mkdir(exist_ok=True)
 
-OPENAI_API_KEY = ***"OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 USE_AI_ADAPTATION = bool(OPENAI_API_KEY)
 
 if not OPENAI_API_KEY:
-    ***"Mode GRATUIT : adaptation basique du CV")
+    print("Mode GRATUIT : adaptation basique du CV")
 else:
     print("Mode IA : adaptation intelligente activee")
 
