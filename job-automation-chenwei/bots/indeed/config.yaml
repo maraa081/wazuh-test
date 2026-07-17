@@ -1,0 +1,31 @@
+# Configuration Indeed - Hu Chenwei
+# Graphiste / Illustratrice / Brand Designer
+# Alternance Paris
+
+search:
+  base_url: "https://fr.indeed.com/jobs?q=alternance+graphiste+design+graphique+illustration+branding&l=Paris&radius=25"
+  keywords:
+    - "alternance graphiste"
+    - "alternance design graphique"
+    - "alternance illustrateur"
+    - "alternance branding"
+    - "alternance identité visuelle"
+    - "alternance PAO"
+    - "stage graphiste"
+    - "stage design graphique"
+    - "stage illustrateur"
+    - "alternance studio graphique"
+  start: 0
+  end: 100
+
+camoufox:
+  user_data_dir: "user_data_dir"
+  language: "fr"
+
+application:
+  profile_complete: true
+  min_description_length: 100
+  max_applications_per_run: 25
+  delay_between_applications:
+    min: 30
+    max: 90
