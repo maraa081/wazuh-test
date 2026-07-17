@@ -46,9 +46,13 @@ forbiden_words_job_offer_question:
   - "DevOps"
   - "développement"
 
-current_post: "Graphiste & Illustratrice"
+current_post: "Graphiste & Illustratrice & Brand Designer"
 language: "french"
 covert_letter_lenght: "court"
+
+# Langues supplémentaires (optionnel, utilisé pour les réponses)
+applicant_email: "via0000413@gmail.com"
+applicant_phone: "+33678352974"
 skip_question: False
 skip_cover_letter: False
 print_error: False

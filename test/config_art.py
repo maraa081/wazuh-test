@@ -84,7 +84,7 @@ DATABASE_CONFIG = {"path": DATA_DIR / "jobs.db", "backup_frequency": "daily", "c
 
 LOGGING_CONFIG = {"level": "INFO", "file_path": LOGS_DIR / "job_automation.log", "max_file_size_mb": 10, "backup_count": 5, "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}
 
-SELENIUM_CONFIG = {"headless": False, "window_size": (1920, 1080), "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "implicit_wait": 10, "page_load_timeout": 30, "download_dir": DATA_DIR / "downloads"}
+SELENIUM_CONFIG = {"headless": True, "window_size": (1920, 1080), "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "implicit_wait": 10, "page_load_timeout": 30, "download_dir": DATA_DIR / "downloads"}
 
 def get_profile_config(profile_name=None):
     if profile_name is None:

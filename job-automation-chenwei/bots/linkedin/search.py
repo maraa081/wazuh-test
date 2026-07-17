@@ -34,8 +34,9 @@ sort_by = "Most recent"
 date_posted = "Past week"
 salary = ""
 easy_apply_only = True
-experience_level = ["Internship", "Entry level"]
-job_type = ["Internship", "Full-time"]
+experience_level = ["Internship", "Entry level", "Associate"]
+job_type = ["Internship", "Full-time", "Contract"]
+on_site = ["On-site", "Hybrid", "Remote"]
 on_site = []
 
 # Exclude these companies from search
