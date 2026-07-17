@@ -5,7 +5,7 @@ Graphiste / Illustratrice / Brand Designer
 
 # Portfolio URL (important pour un profil créatif)
 portfolio_url = "https://github.com/maraa081/wazuh-test/tree/main/test"  # Portfolio + CV
-linkedin_url = ""   # Profil LinkedIn de Chenwei (à demander)
+linkedin_url = "https://www.linkedin.com/in/chenwei-h-9223b3422/"
 github_url = ""
 
 # Attached resume path

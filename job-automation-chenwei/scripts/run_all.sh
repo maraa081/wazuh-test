@@ -64,15 +64,30 @@ run_linkedin() {
     cp "$BOTS_DIR/linkedin/resume.py" config/resume.py
     
     echo "✅ Config LinkedIn chargée"
-    echo "🚀 Lancement du bot LinkedIn..."
-    python3 runAiBot.py 2>&1 | tee "$LOG_DIR/linkedin_$DATE_TAG.log"
+    echo "⚠️  Le bot LinkedIn a besoin d'un écran physique (GUI)."
+    echo "   Sur WSL sans écran : pas recommandé (pyautogui + Chrome GUI)."
+    echo ""
+    echo "   👉 Option 1 : Lance sur le PC de Chenwei (Windows) :"
+    echo "      cd godsScion_bot && python3 runAiBot.py"
+    echo ""
+    echo "   👉 Option 2 : Mode Xvfb (expérimental, peut planter) :"
+    echo "      Xvfb :99 -screen 0 1920x1080x24 -nolisten unix &"
+    echo "      DISPLAY=:99 python3 runAiBot.py"
+    echo ""
+    echo "👉 Lancement avec Xvfb..."
+    Xvfb :99 -screen 0 1920x1080x24 -nolisten unix &
+    XVFB_PID=$!
+    sleep 1
+    DISPLAY=:99 python3 runAiBot.py 2>&1 | tee "$LOG_DIR/linkedin_$DATE_TAG.log"
+    kill $XVFB_PID 2>/dev/null
+    unset DISPLAY
     
     cd "$PROJECT_DIR"
 }
 
 run_indeed() {
     echo ""
-    echo "─── Indeed Bot ───"
+    echo "─── Indeed Bot (Camoufox) ───"
     check_venv
     source "$VENV/bin/activate"
     
@@ -81,6 +96,10 @@ run_indeed() {
     cp "$BOTS_DIR/indeed/config.yaml" config.yaml
     
     echo "🚀 Lancement du bot Indeed..."
+    echo "   👉 Assure-toi que le compte Indeed de Chenwei a :"
+    echo "      - Un CV uploadé sur son profil"
+    echo "      - Nom, prénom, adresse, téléphone remplis"
+    echo ""
     python3 indeed_bot.py 2>&1 | tee "$LOG_DIR/indeed_$DATE_TAG.log"
     
     cd "$PROJECT_DIR"
@@ -89,20 +108,13 @@ run_indeed() {
 run_wtj() {
     echo ""
     echo "─── Welcome to the Jungle Bot ───"
-    check_venv
-    source "$VENV/bin/activate"
-    
-    cd "$PROJECT_DIR/../../autoApply"
-    
-    cp "$BOTS_DIR/wtj/configuration.yml" configuration.yml
-    
-    echo "⚠️  ATTENTION : Le site WTJ a changé le 27/04/2026"
-    echo "   Le bot peut ne plus fonctionner correctement."
+    echo "❌  BOT CASSÉ : Le site WTJ a été redesigné le 27/04/2026"
+    echo "    Le bot autoApply ne fonctionne plus depuis cette date."
     echo ""
-    
-    python3 main.py 2>&1 | tee "$LOG_DIR/wtj_$DATE_TAG.log"
-    
-    cd "$PROJECT_DIR"
+    echo "   Solution : postuler manuellement via :"
+    echo "   https://www.welcometothejungle.com/fr/me/applications"
+    echo "   Les credentials sont configurés dans bots/wtj/configuration.yml"
+    echo ""
 }
 
 setup_env() {
