@@ -64,23 +64,27 @@ run_linkedin() {
     cp "$BOTS_DIR/linkedin/resume.py" config/resume.py
     
     echo "✅ Config LinkedIn chargée"
-    echo "⚠️  Le bot LinkedIn a besoin d'un écran physique (GUI)."
-    echo "   Sur WSL sans écran : pas recommandé (pyautogui + Chrome GUI)."
-    echo ""
-    echo "   👉 Option 1 : Lance sur le PC de Chenwei (Windows) :"
-    echo "      cd godsScion_bot && python3 runAiBot.py"
-    echo ""
-    echo "   👉 Option 2 : Mode Xvfb (expérimental, peut planter) :"
-    echo "      Xvfb :99 -screen 0 1920x1080x24 -nolisten unix &"
-    echo "      DISPLAY=:99 python3 runAiBot.py"
-    echo ""
-    echo "👉 Lancement avec Xvfb..."
-    Xvfb :99 -screen 0 1920x1080x24 -nolisten unix &
-    XVFB_PID=$!
-    sleep 1
+    echo "🚀 Lancement bot LinkedIn (Xvfb + headless)..."
+    
+    # Démarrer Xvfb si pas déjà lancé
+    if ! pgrep -x Xvfb > /dev/null; then
+        Xvfb :99 -screen 0 1920x1080x24 -nolisten unix &
+        sleep 1
+    fi
+    
+    cd "$PROJECT_DIR/../../godsScion_bot"
+    
+    # Copier les configs personnalisées
+    cp "$BOTS_DIR/linkedin/personals.py" config/personals.py
+    cp "$BOTS_DIR/linkedin/secrets.py" config/secrets.py
+    cp "$BOTS_DIR/linkedin/search.py" config/search.py
+    cp "$BOTS_DIR/linkedin/questions.py" config/questions.py
+    cp "$BOTS_DIR/linkedin/settings.py" config/settings.py
+    cp "$BOTS_DIR/linkedin/resume.py" config/resume.py
+    
     DISPLAY=:99 python3 runAiBot.py 2>&1 | tee "$LOG_DIR/linkedin_$DATE_TAG.log"
-    kill $XVFB_PID 2>/dev/null
-    unset DISPLAY
+    
+    cd "$PROJECT_DIR"
     
     cd "$PROJECT_DIR"
 }
