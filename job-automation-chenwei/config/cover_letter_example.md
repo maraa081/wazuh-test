@@ -1,10 +1,3 @@
-# Exemple de lettre de motivation générée automatiquement
-## Hu Chenwei — Graphiste & Illustratrice
-
----
-
-**Objet : Candidature à une alternance en design graphique**
-
 Madame, Monsieur,
 
 Actuellement étudiante en Diplôme National d'Art à l'Institut Supérieur des Beaux-Arts de Besançon, et forte d'une formation préalable aux Beaux-Arts de Nantes et de Shanghai, je me permets de vous adresser ma candidature pour une alternance au sein de votre agence.
@@ -20,8 +13,3 @@ Dans l'attente de votre retour, je reste à votre disposition pour un éventuel 
 Cordialement,
 
 Hu Chenwei
-
----
-
-*Généré le 18/07/2026 — Profil : Graphiste / Illustratrice / Brand Designer*
-*Email : via0000413@gmail.com | LinkedIn : linkedin.com/in/chenwei-h-9223b3422/*

@@ -16,13 +16,13 @@ motivation_letter = """Madame, Monsieur,
 
 Actuellement étudiante aux Beaux-Arts et à la recherche d'une alternance en design graphique, illustration ou branding à partir de septembre 2026, je souhaite mettre ma créativité et mes compétences techniques au service de votre équipe.
 
-Formée aux Beaux-Arts de Shanghai, Nantes et Besançon, je développe des projets mêlant illustration, design graphique et sculpture, avec un intérêt particulier pour le branding, l'édition et les univers narratifs. Je maîtrise la suite Adobe (Photoshop, Illustrator, InDesign), ainsi que ZBrush et Procreate.
+Formée aux Beaux-Arts de Shanghai, Nantes et Besançon, je développe des projets mêlant illustration, design graphique et sculpture, avec un intérêt particulier pour le branding, l'édition et les univers narratifs. Je maîtrise la suite Adobe, ainsi que ZBrush et Procreate.
 
-J'ai eu l'occasion de collaborer avec Artgogo et Brother China pour un projet artistique à la China International Import Expo, de créer une identité visuelle complète pour un concept de café (Yuffee), et d'exposer et vendre mes sculptures et illustrations lors d'expositions à Shanghai.
+J'ai eu l'occasion de collaborer avec Artgogo et Brother China pour un projet à la China International Import Expo, de créer une identité visuelle complète pour un café (Yuffee), et d'exposer et vendre mes œuvres lors d'expositions à Shanghai.
 
-Je serais ravie de pouvoir contribuer à vos projets et d'apprendre à vos côtés tout au long de cette alternance.
+Je serais ravie de contribuer à vos projets et d'apprendre à vos côtés tout au long de cette alternance.
 
-Dans l'attente de votre retour, je reste à votre disposition pour un éventuel entretien.
+Dans l'attente de votre retour,
 
 Cordialement,
 Hu Chenwei"""
