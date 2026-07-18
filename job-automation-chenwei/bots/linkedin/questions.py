@@ -4,12 +4,12 @@ Graphiste / Illustratrice / Brand Designer
 '''
 
 # Portfolio URL (important pour un profil créatif)
-portfolio_url = "https://github.com/maraa081/wazuh-test/tree/main/test"  # Portfolio + CV
+portfolio_url = "https://github.com/maraa081/wazuh-test/tree/main/test"
 linkedin_url = "https://www.linkedin.com/in/chenwei-h-9223b3422/"
 github_url = ""
 
 # Attached resume path
-default_resume_path = "/home/user/.openclaw/workspace/wazuh-test/test/Hu chenwei cv.pdf"
+default_resume_path = "test/Hu chenwei cv.pdf"
 
 # Cover letter (lettre de motivation type)
 motivation_letter = """Madame, Monsieur,
@@ -38,8 +38,7 @@ additional_questions = {
     "experience": "Formation aux Beaux-Arts de Shanghai, Nantes et Besançon. Projets concrets : identité visuelle Yuffee (branding café narratif), exposition jeunes artistes Shanghai (vente de 3 sculptures + 20 illustrations), collaboration Artgogo x Brother China (installation écologique CIIE).",
     "formation": "DNA option Art - Institut Supérieur des Beaux-Arts de Besançon (2024-2025) | École des Beaux-Arts de Nantes (2023-2024) | Licence Peinture - Institut des Arts visuels de Shanghai (2019-2023)",
     "portfolio_details": "Création d'identité visuelle, packaging, branding, illustrations, sculptures, installations écologiques, affiches et supports de communication",
-    "motivations_alternance": "Graphisme, illustration, branding, édition, univers narratifs, direction artistique"
-}
+    "motivations_alternance": "Graphisme, illustration, branding, édition, univers narratifs, direction artistique",
     "logiciels": "Photoshop, Illustrator, InDesign, Procreate, ZBrush, Figma, Canva",
     "langues": "Chinois (langue maternelle), Français (B2), Anglais (intermédiaire), Japonais (N4)",
 }
