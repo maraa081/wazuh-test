@@ -27,6 +27,12 @@ stealth_mode = True
 # Maximum number of applications per run
 max_applications = 30
 
+# Skip resume generation (CV is a designed image, not regeneratable)
+use_resume_generator = False
+
+# Generate cover letters instead
+use_cover_letter_generator = True
+
 # Daily limit (0 = no limit)
 daily_limit = 50
 
