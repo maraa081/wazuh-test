@@ -19,7 +19,7 @@ type_max_delay = 0.15
 keep_screen_awake = False
 
 # Run in background (no browser window)?
-run_in_background = False
+run_in_background = True  # WSL headless, Xvfb gère l'affichage
 
 # Stealth mode (evade bot detection)?
 stealth_mode = True
@@ -38,3 +38,7 @@ daily_limit = 50
 
 # Log level
 log_level = "INFO"
+
+# Use custom Chrome profile with LinkedIn session cookies (skip MFA)
+safe_mode = False
+profile_dir = "/home/user/.auto-job-apply-profile-linkedin"
