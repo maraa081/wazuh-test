@@ -53,9 +53,12 @@ def answer_question(question_text):
     return None
 
 def handle_easy_apply(page):
+    """Fill Easy Apply form and submit. Uses JS to find buttons."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     for step in range(10):
-        time.sleep(random.uniform(1.5, 3))
+        time.sleep(random.uniform(2, 4))
+        
+        # Fill text inputs via Playwright
         try:
             for inp in page.locator("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea").all():
                 if inp.get_attribute("value"): continue
@@ -68,6 +71,8 @@ def handle_easy_apply(page):
                     try: inp.fill(answer); log(f"    Rempli: {txt[:20]}..."); time.sleep(0.3)
                     except: pass
         except: pass
+        
+        # Handle radio/checkboxes
         try:
             for r in page.locator("input[type=radio], input[type=checkbox]").all():
                 if r.is_checked(): continue
@@ -76,26 +81,58 @@ def handle_easy_apply(page):
                     try: r.check(); log(f"    Check: {lt[:20]}...")
                     except: pass
         except: pass
-        try:
-            btn = page.locator("button[type=submit], button:has-text('Suivant'), button:has-text('Next'), button:has-text('Submit'), button:has-text('Examiner'), button:has-text('Review'), button:has-text('Envoyer'), button:has-text('Postuler'), button:has-text('Apply')").first
-            if btn.is_visible(timeout=2000):
-                t = btn.text_content() or ""
-                btn.click()
-                log(f"    Bouton: {t[:20]}")
-                time.sleep(random.uniform(2, 3))
-                body = page.evaluate("document.body.innerText") or ""
-                if "Candidature envoy" in body or "Application sent" in body:
-                    log("  CANDIDATURE ENVOYEE!")
-                    try:
-                        d = page.locator("button[aria-label=Dismiss], button:has-text('Done'), button:has-text('Termine')").first
-                        if d.is_visible(timeout=1000): d.click(); time.sleep(1)
-                    except: pass
-                    return True
-            else:
-                log(f"    Plus de bouton (step {step+1})")
-                break
-        except:
-            log(f"    Bouton pas trouve (step {step+1})")
+        
+        # Find and click the next/submit button using JS
+        result = page.evaluate("""() => {
+            const terms = ["Suivant", "Next", "Submit", "Examiner", "Review",
+                           "Envoyer", "Postuler", "Apply", "Save", "Done",
+                           "Terminer", "Termine", "Continuer", "Continue"];
+            const allEls = document.querySelectorAll('button, span[role=button], div[role=button], a[role=button]');
+            for (const el of allEls) {
+                const t = (el.textContent || '').trim();
+                if (!t) continue;
+                const tl = t.toLowerCase().replace(/[\s\u00A0]+/g, ' ');
+                for (const term of terms) {
+                    if (tl === term.toLowerCase() || tl.startsWith(term.toLowerCase())) {
+                        el.click();
+                        return {found: true, text: t.substring(0,20)};
+                    }
+                }
+            }
+            // Fallback: last visible button in the modal
+            const modal = document.querySelector('[class*="artdeco-modal"], [class*="modal"], [class*="easy-apply"]') || document;
+            const btns = modal.querySelectorAll('button');
+            const visibleBtns = Array.from(btns).filter(b => b.offsetParent !== null && b.textContent.trim());
+            if (visibleBtns.length > 0) {
+                const last = visibleBtns[visibleBtns.length-1];
+                const txt = (last.textContent || '').trim();
+                // Dont click cancel/close buttons
+                if (!txt.toLowerCase().includes('cancel') && !txt.toLowerCase().includes('fermer') && !txt.toLowerCase().includes('close') && !txt.toLowerCase().includes('annuler')) {
+                    last.click();
+                    return {found: true, text: 'fallback:' + txt.substring(0,20)};
+                }
+            }
+            return {found: false, text: '' };
+        }""")
+        
+        if result.get('found'):
+            log(f"    Bouton: {result.get('text', '?')[:20]}")
+            time.sleep(random.uniform(2, 3))
+            
+            # Check if submitted
+            body = page.evaluate("document.body.innerText") or ""
+            if "Candidature envoy" in body or "Application sent" in body or "Candidature envoyée" in body:
+                log("  CANDIDATURE ENVOYEE!")
+                try:
+                    d = page.locator("button[aria-label=Dismiss], button:has-text('Done'), button:has-text('Termine'), button:has-text('Terminer')").first
+                    if d.is_visible(timeout=1000): d.click(); time.sleep(1)
+                except: pass
+                return True
+        else:
+            log(f"    Plus de bouton (step {step+1})")
+            # Take screenshot for debugging
+            try: page.screenshot(path=str(LOG_DIR / f"debug_nobtn_{step}.png"))
+            except: pass
             break
     return False
 
