@@ -285,60 +285,63 @@ def main():
                 page_title = page.evaluate("document.title")
                 log(f"  Page title: {page_title[:80]}")
                 
-                # Use JS to find ALL clickable links in the page
-                job_count = page.evaluate("""() => {
-                    // Get ALL links on the page
-                    const allLinks = Array.from(document.querySelectorAll('a[href]'));
-                    const jobLinks = allLinks.filter(a => a.href.includes('/jobs/view/') || a.href.includes('/jobs/collections/'));
-                    
-                    // Try more selectors
+                # Use JS to find the best selector for job cards
+                job_info = page.evaluate("""() => {
                     const selectors = [
                         'a.job-card-list__title',
+                        'a.job-card-card__title',
                         'a[class*=job-card]',
                         'a[data-job-id]',
-                        '.job-card-container a:first-child',
-                        'li[data-entity-urn] a',
-                        '[class*=job-card] a[href*="/jobs/view/"]',
-                        '[data-entity-urn*=jobPosting]',
+                        '.job-card-container a',
+                        'li[data-entity-urn]',
                         'li[data-occludable-job-id]',
-                        '.scaffold-layout__list-item',
                         '[class*=jobs-search-results] li',
                         'article',
                     ];
                     for (const sel of selectors) {
                         const els = document.querySelectorAll(sel);
-                        if (els.length > 0) return {count: els.length, selector: sel, sample: (els[0].outerHTML || '').substring(0,200)};
+                        if (els.length > 0) {
+                            const el = els[0];
+                            const info = {
+                                tag: el.tagName,
+                                id: (el.id || '').substring(0,40),
+                                cls: (el.className || '').substring(0,80),
+                                href: (el.href || el.getAttribute('href') || '').substring(0,120),
+                                text: (el.textContent || '').trim().substring(0,60),
+                            };
+                            return {count: els.length, sel: sel, info: info};
+                        }
                     }
-                    
-                    // Last resort: any link with job-related text
-                    if (jobLinks.length > 0) return {count: jobLinks.length, selector: 'any-job-link', sample: jobLinks[0].href};
-                    
-                    return {count: 0, selector: 'none', sample: allLinks.length + ' total links on page'};
+                    const allA = Array.from(document.querySelectorAll('a')).map(a => (a.href || '').substring(0,80)).join('|');
+                    return {count: 0, sel: 'none', info: {tag: '-', cls: document.body.innerText.substring(0,200)}};
                 }""")
-                log(f"  Result: {job_count}")
-                log(f"  Selector found: {job_count.get('selector', '?')}")
-                log(f"  Sample: {job_count.get('sample', '?')[:120]}")
+                log(f"  Finds: {job_info.get('count', 0)}")
+                log(f"  Selector: {job_info.get('sel', '?')}")
+                log(f"  Sample tag: {job_info.get('info', {}).get('tag', '?')}")
+                log(f"  Sample cls: {str(job_info.get('info', {}).get('cls', '?'))[:60]}")
+                log(f"  Sample text: {str(job_info.get('info', {}).get('text', '?'))[:60]}")
                 
-                for i in range(min(job_count if job_count else 10, 5)):
+                jc = job_info.get('count', 0) if isinstance(job_info, dict) else (job_info or 0)
+                best_sel = job_info.get('sel', '') if isinstance(job_info, dict) else ''
+                
+                for i in range(min(jc, 5)):
                     if total_applied >= max_apps: break
                     
                     try:
                         log(f"  Offre {i+1}...")
+                        safe_sel = best_sel.replace("'", "\\'") if best_sel else 'none'
                         clicked = page.evaluate(f"""(idx) => {{
-                            let cards = document.querySelectorAll('a.job-card-list__title, a[class*=job-card], a[data-job-id], .job-card-container a:first-child, li[data-entity-urn] a');
-                            if (cards.length === 0) {{
-                                cards = document.querySelectorAll('[class*=job-card] a[href*="/jobs/view/"]');
+                            const sel = '{safe_sel}';
+                            const cards = document.querySelectorAll(sel);
+                            if (cards.length > idx) {{
+                                cards[idx].click();
+                                return true;
                             }}
-                            if (cards.length === 0) {{
-                                const panel = document.querySelector('.jobs-search-results-list') || document.querySelector('[class*=search-results]');
-                                if (panel) cards = panel.querySelectorAll('a[href*="/jobs/view/"]');
-                            }}
-                            if (cards[idx]) {{ cards[idx].click(); return true; }}
                             return false;
                         }}""", i)
                         
                         if not clicked:
-                            log("    Impossible de cliquer sur l'offre")
+                            log("    Impossible de cliquer")
                             continue
                         time.sleep(random.uniform(2, 4))
                         
