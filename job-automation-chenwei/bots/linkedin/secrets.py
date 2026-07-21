@@ -5,7 +5,7 @@ Profil : Graphiste / Illustratrice / Brand Designer
 
 # LinkedIn credentials (à remplir par Maraa)
 username = "chen771216000@gmail.com"
-password = "1216413@Huchenyang"
+password = "1216413@Huyangfang"
 
 # AI settings (optionnel - utiliser DeepSeek pour les resumés)
 use_AI = True
