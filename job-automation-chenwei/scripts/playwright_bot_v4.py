@@ -99,6 +99,40 @@ def handle_easy_apply(page):
             break
     return False
 
+def click_easy_apply(page):
+    """Find and click Easy Apply button using multiple strategies."""
+    result = page.evaluate("""() => {
+        const terms = ["Easy Apply", "Candidature simplifiée", "Postuler facilement",
+                        "Candidature simplifiee", "Apply", "Postuler", "Postulez",
+                        "easyapply", "easy_apply"];
+        const allElements = document.querySelectorAll('button, a, span, div, [role=button]');
+        for (const el of allElements) {
+            const t = (el.textContent || '').trim();
+            const tl = t.toLowerCase().replace(/\\s+/g, '');
+            const cl = (el.className || '').toLowerCase();
+            for (const term of terms) {
+                if (tl === term.toLowerCase().replace(/\\s+/g, '') ||
+                    tl.includes(term.toLowerCase().replace(/\\s+/g, '')) ||
+                    cl.includes('easy-apply') || cl.includes('easy_apply')) {
+                    el.click();
+                    return {found: true, text: t.substring(0,30), tag: el.tagName};
+                }
+            }
+        }
+        // Fallback: any button with job-related action
+        const btns = document.querySelectorAll('button');
+        for (const btn of btns) {
+            const cls = (btn.className || '') + (btn.getAttribute('aria-label') || '');
+            const txt = (btn.textContent || '').toLowerCase();
+            if (cls.includes('apply') || txt.includes('postul') || txt.includes('candid')) {
+                btn.click();
+                return {found: true, text: txt.substring(0,30), tag: 'BUTTON-fallback'};
+            }
+        }
+        return {found: false, text: 'none'};
+    }""")
+    return result.get('found', False)
+
 def find_job_links(page):
     return page.evaluate("""() => {
         const resultList = document.querySelector('ul.jobs-search__results-list');
@@ -158,8 +192,9 @@ def main():
             log("")
             log("  1. Chromium s'ouvre sur la page LinkedIn")
             log("  2. CONNECTE-TOI manuellement dans la fenetre")
-            log("  3. Reviens ici et appuie sur ENTREE")
-            log("  4. Le bot postule aux offres Easy Apply")
+            log("  3. Si LinkedIn demande un code PIN, verifie tes mails et tape-le")
+            log("  4. Reviens ici et appuie sur ENTREE")
+            log("  5. Le bot postule aux offres Easy Apply")
             log("")
             log("=" * 50)
             log("")
@@ -169,15 +204,12 @@ def main():
             
             input(">>> Appuie sur ENTREE une fois connecte a LinkedIn... ")
             
-            # Wait for any challenge/redirect to finish, then check status
+            # Wait for any challenge/redirect
             log("Verification de la connexion...")
             time.sleep(3)
-            current_url = page.url.lower()
-            log(f"URL actuelle: {current_url[:100]}")
-            
-            # Check if we need to wait for PIN challenge or login
             wait_start = time.time()
-            max_wait = 300  # 5 min
+            max_wait = 300
+            
             while time.time() - wait_start < max_wait:
                 try:
                     current_url = page.url.lower()
@@ -191,10 +223,9 @@ def main():
                         log("  Toujours pas connecte... connecte-toi dans la fenetre Chromium")
                     else:
                         log(f"  Page en cours: {current_url[:60]}")
-                    
                     time.sleep(5)
                     elapsed = int(time.time() - wait_start)
-                    if elapsed % 30 == 0:
+                    if elapsed > 0 and elapsed % 30 == 0:
                         log(f"  Attente... ({elapsed}s)")
                 except Exception as e:
                     log(f"  Check error: {str(e)[:50]}")
@@ -234,7 +265,7 @@ def main():
                 log(f"  Page: {ptitle[:60]}")
                 
                 links_result = find_job_links(page)
-                log(f"  Jobs found: {str(links_result)[:150]}")
+                log(f"  Jobs: {str(links_result)[:150]}")
                 
                 if isinstance(links_result, list):
                     urls = links_result
@@ -270,19 +301,15 @@ def main():
                             continue
                         time.sleep(random.uniform(2, 4))
                         
-                        for text in ["Candidature simplifiee", "Easy Apply", "Postuler facilement", "Apply"]:
-                            try:
-                                btn = page.locator(f"button:has-text('{text}')").first
-                                if btn.is_visible(timeout=2000):
-                                    log(f"  Easy Apply!")
-                                    btn.click()
-                                    time.sleep(random.uniform(2, 3))
-                                    if handle_easy_apply(page):
-                                        total_applied += 1
-                                        log(f"  Total: {total_applied}")
-                                    time.sleep(5)
-                                    break
-                            except: pass
+                        # Find Easy Apply button (comprehensive search)
+                        found = click_easy_apply(page)
+                        if found:
+                            log(f"  Easy Apply!")
+                            time.sleep(random.uniform(2, 3))
+                            if handle_easy_apply(page):
+                                total_applied += 1
+                                log(f"  Total: {total_applied}")
+                            time.sleep(5)
                         else:
                             log("    No Easy Apply")
                     
@@ -298,19 +325,15 @@ def main():
                         page.goto(job_url, wait_until="load", timeout=15000)
                         time.sleep(3)
                     except: pass
-                    for text in ["Candidature simplifiee", "Easy Apply", "Postuler facilement", "Apply"]:
-                        try:
-                            btn = page.locator(f"button:has-text('{text}')").first
-                            if btn.is_visible(timeout=2000):
-                                log(f"  Easy Apply!")
-                                btn.click()
-                                time.sleep(random.uniform(2, 3))
-                                if handle_easy_apply(page):
-                                    total_applied += 1
-                                    log(f"  Total: {total_applied}")
-                                time.sleep(5)
-                                break
-                        except: pass
+                    
+                    found = click_easy_apply(page)
+                    if found:
+                        log(f"  Easy Apply!")
+                        time.sleep(random.uniform(2, 3))
+                        if handle_easy_apply(page):
+                            total_applied += 1
+                            log(f"  Total: {total_applied}")
+                        time.sleep(5)
                     else:
                         log("    No Easy Apply")
             
