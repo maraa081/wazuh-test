@@ -184,50 +184,40 @@ def main():
             
             url = page.url.lower()
             log(f"URL: {url[:80]}")
-            body_text = page.evaluate("document.body.innerText")
-            is_logged = ("feed" in url or "job" in url) and "S'identifier" not in body_text and "Se connecter" not in body_text
             
-            if not is_logged:
+            if "login" in url or "checkpoint" in url:
                 log("⚠️ PAS CONNECTE A LINKEDIN")
                 log("Le bot va essayer de se connecter avec les credentials...")
                 
                 page.goto("https://www.linkedin.com/login", wait_until="load", timeout=15000)
                 time.sleep(2)
                 
-                # Fill login via JS
-                filled = page.evaluate("""({u, p}) => {
-                    let email = false, pass = false;
-                    document.querySelectorAll('input').forEach(inp => {
-                        const ph = (inp.placeholder || '').toLowerCase();
-                        const type = (inp.type || '').toLowerCase();
-                        if (!email && (ph.includes('email') || ph.includes('phone') || type === 'email' || type === 'text')) {
-                            const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-                            s.call(inp, u);
-                            inp.dispatchEvent(new Event('input', {bubbles:true}));
-                            inp.dispatchEvent(new Event('change', {bubbles:true}));
-                            email = true;
-                        }
-                        if (!pass && (ph.includes('password') || type === 'password')) {
-                            const s = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-                            s.call(inp, p);
-                            inp.dispatchEvent(new Event('input', {bubbles:true}));
-                            inp.dispatchEvent(new Event('change', {bubbles:true}));
-                            pass = true;
-                        }
-                    });
-                    return {email, pass};
-                }""", {"u": cf_username, 
-                       "p": cf_password})
+                # Fill login - use Playwright fill (more reliable than JS)
+                try:
+                    email_input = page.locator("input#session_key, input[name=session_key], input[autocomplete=username], input[type=email]")
+                    email_input.first.fill(cf_username)
+                    log("  Email filled")
+                except Exception as e:
+                    log(f"  Email fill error: {str(e)[:60]}")
                 
-                log(f"Login fill: email={filled.get('email')}, pass={filled.get('pass')}")
+                try:
+                    pass_input = page.locator("input#session_password, input[name=session_password], input[type=password]")
+                    pass_input.first.fill(cf_password)
+                    log("  Password filled")
+                except Exception as e:
+                    log(f"  Password fill error: {str(e)[:60]}")
+                
                 time.sleep(1)
                 
-                # Click submit
-                page.evaluate("""() => {
-                    const btn = document.querySelector('button[type=submit]');
-                    if (btn) { btn.click(); return true; }
-                    return false;
-                }""")
+                # Click submit with Playwright
+                try:
+                    submit_btn = page.locator("button[type=submit], button:has-text('S\'identifier'), button:has-text('Sign in')")
+                    submit_btn.first.click()
+                    log("  Submit clicked")
+                except Exception as e:
+                    log(f"  Submit click error: {str(e)[:60]}")
+                    # Fallback: JS click
+                    page.evaluate("document.querySelector('button[type=submit]')?.click()")
                 
                 time.sleep(8)
                 
@@ -248,9 +238,7 @@ def main():
                         try:
                             page.goto("https://www.linkedin.com/feed/", wait_until="load", timeout=10000)
                             time.sleep(2)
-                            u = page.url.lower()
-                            bt = page.evaluate("document.body.innerText") or ""
-                            if ("feed" in u or "job" in u) and "S'identifier" not in bt and "Se connecter" not in bt:
+                            if "feed" in page.url.lower():
                                 log("✅ Connecte!")
                                 break
                         except: pass
