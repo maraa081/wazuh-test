@@ -77,12 +77,19 @@ def handle_easy_apply_v5(page):
         result = page.evaluate(f"""(step) => {{
             {_ANSWERS_JS}
             
-            // STEP A: Fill all form fields
-            const allFields = document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select');
+            // STEP A: Fill all form fields AND detect file inputs
+            const allFields = document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select, input[type=file]');
             let lastWasCountry = false;
             let filled = [];
+            let hasFileInput = false;
             
             for (const field of allFields) {{
+                // Handle file upload detection (CV/resume)
+                if (field.type === 'file') {{
+                    hasFileInput = true;
+                    filled.push({{field: 'FILE-input:' + field.id, type: 'file', value: 'NEED_UPLOAD'}});
+                    continue;
+                }}
                 // Already filled
                 if (field.value && field.value.trim()) {{
                     // Check if this is a country code (France +33) -> next empty = phone
@@ -248,7 +255,17 @@ def handle_easy_apply_v5(page):
         for f in result.get('filled', []):
             log(f"    -> {f.get('field','?')} = {f.get('value','?')}")
         
-        if result.get('done'):
+        # Upload CV if a file input was detected
+        if result.get('hasFileInput') or any('FILE' in (f.get('value','') or '') for f in result.get('filled', [])):
+            try:
+                cv_path = str(Path(__file__).parent.parent / "data" / "CV_Chenwei_Hu.pdf")
+                if os.path.exists(cv_path):
+                    file_input = page.locator("input[type=file]")
+                    if file_input.count() > 0:
+                        file_input.first.set_input_files(cv_path)
+                        log(f"  CV upload: {cv_path}")
+            except Exception as e:
+                log(f"  CV upload error: {str(e)[:60]}")
             log("  CANDIDATURE ENVOYEE!")
             try:
                 d = page.locator("button[aria-label=Dismiss], button:has-text('Done'), button:has-text('Termine')").first
