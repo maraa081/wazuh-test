@@ -117,48 +117,67 @@ def do_login(page, username, password):
     page.goto("https://www.linkedin.com/login", wait_until="load", timeout=20000)
     time.sleep(3)
     
-    # Method 1: Try automatic login with JS filling
-    filled = page.evaluate("""({u, p}) => {
-        const uid = document.getElementById('session_key');
-        const pwd = document.getElementById('session_password');
-        if (!uid || !pwd) {
-            // Fallback: find by name
-            const allInputs = document.querySelectorAll('input');
-            let foundEmail = false, foundPass = false;
-            allInputs.forEach(inp => {
-                if (!foundEmail && (inp.name === 'session_key' || inp.placeholder.toLowerCase().includes('email') || inp.placeholder.toLowerCase().includes('phone'))) {
-                    inp.focus(); inp.value = ''; inp.value = u;
-                    inp.dispatchEvent(new Event('input', {bubbles: true}));
-                    inp.dispatchEvent(new Event('change', {bubbles: true}));
-                    foundEmail = true;
-                }
-                if (!foundPass && inp.type === 'password') {
-                    inp.focus(); inp.value = ''; inp.value = p;
-                    inp.dispatchEvent(new Event('input', {bubbles: true}));
-                    inp.dispatchEvent(new Event('change', {bubbles: true}));
-                    foundPass = true;
-                }
-            });
-            return {email: foundEmail, pass: foundPass};
-        }
-        uid.focus(); uid.value = ''; uid.value = u;
-        uid.dispatchEvent(new Event('input', {bubbles: true}));
-        uid.dispatchEvent(new Event('change', {bubbles: true}));
-        pwd.focus(); pwd.value = ''; pwd.value = p;
-        pwd.dispatchEvent(new Event('input', {bubbles: true}));
-        pwd.dispatchEvent(new Event('change', {bubbles: true}));
-        return {email: true, pass: true};
-    }""", {"u": username, "p": password})
-    log(f"Login JS fill: email={filled.get('email')}, pass={filled.get('pass')}")
+    # Use Playwright's type() instead of JS fill for React compatibility
+    # LinkedIn now uses randomized IDs for all form inputs
+    try:
+        email_input = page.locator("input[type='email'][autocomplete='username']")
+        email_input.first.wait_for(timeout=5000)
+        email_input.first.fill('')
+        email_input.first.type(username, delay=50)
+        log("  Email filled via Playwright type()")
+    except Exception as e:
+        log(f"  Email fill failed: {str(e)[:60]}")
+        # Try JS fallback with the correct selector
+        filled = page.evaluate("""({u, p}) => {
+            const emailInput = document.querySelector("input[type='email'][autocomplete='username']");
+            const passInput = document.querySelector("input[type='password'][autocomplete='current-password']");
+            if (emailInput) {
+                emailInput.focus(); emailInput.value = ''; emailInput.value = u;
+                emailInput.dispatchEvent(new Event('input', {bubbles: true}));
+                emailInput.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            if (passInput) {
+                passInput.focus(); passInput.value = ''; passInput.value = p;
+                passInput.dispatchEvent(new Event('input', {bubbles: true}));
+                passInput.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+            return {email: !!emailInput, pass: !!passInput};
+        }""", {"u": username, "p": password})
+        log(f"  JS fill (fallback): email={filled.get('email')}, pass={filled.get('pass')}")
+    
     time.sleep(1)
     
-    # Click Sign in button
+    try:
+        pass_input = page.locator("input[type='password'][autocomplete='current-password']")
+        pass_input.first.wait_for(timeout=5000)
+        pass_input.first.fill('')
+        pass_input.first.type(password, delay=50)
+        log("  Password filled via Playwright type()")
+    except Exception as e:
+        log(f"  Password fill failed: {str(e)[:60]}")
+    
+    time.sleep(1)
+    
+    # Click Sign in (S'identifier) button - no [type=submit] on LinkedIn!
     btn_clicked = page.evaluate("""() => {
-        const btn = document.querySelector('button[type=submit]');
-        if (btn) { btn.click(); return true; }
-        return false;
+        const allBtns = document.querySelectorAll('button');
+        for (const btn of allBtns) {
+            const t = (btn.textContent || '').trim().toLowerCase();
+            if (t === "s'identifier" || t.includes("sign in") || t.includes("sign-in")) {
+                btn.click();
+                return 'found-sign-in';
+            }
+        }
+        // Fallback: last button in the form area
+        const formArea = document.querySelector('.login__form_action_container') ||
+                         document.querySelector('[class*=login]');
+        if (formArea) {
+            const btns = formArea.querySelectorAll('button');
+            if (btns.length > 0) { btns[btns.length-1].click(); return 'form-area-button'; }
+        }
+        return 'no-button-found';
     }""")
-    log(f"Submit button clicked: {btn_clicked}")
+    log(f"Submit: {btn_clicked}")
     
     time.sleep(5)
     url_after = page.url.lower()
@@ -194,36 +213,48 @@ def do_login(page, username, password):
 def find_job_links(page):
     """Find all job posting links on the search page using multiple strategies."""
     return page.evaluate("""() => {
-        // Strategy A: Direct job links
+        // LinkedIn CURRENT structure (verified July 2026):
+        // Container: div.job-search-card (child of ul.jobs-search__results-list)
+        // Title: h3.base-search-card__title
+        // Link: a.base-card__full-link
+        // Company: h4.base-search-card__subtitle
+        //
+        // Strategy 1: Direct job view links from the results list
+        const resultList = document.querySelector('ul.jobs-search__results-list');
+        if (resultList) {
+            const links = resultList.querySelectorAll('a.base-card__full-link, a[href*="/jobs/view/"]');
+            if (links.length > 0) return Array.from(links).map(a => a.href);
+            // Try getting parent card clickable area
+            const cards = resultList.querySelectorAll('div.job-search-card, div.base-search-card');
+            if (cards.length > 0) return 'ELEMENTS:' + cards.length + '|TAG:DIV|CLS:job-search-card'; 
+        }
+        
+        // Strategy 2: Any link with /jobs/view/
         let links = Array.from(document.querySelectorAll('a[href*="/jobs/view/"]'));
         if (links.length > 0) return links.map(a => a.href);
         
-        // Strategy B: Click on anything with job data and wait
+        // Strategy 3: Fallback selectors
         const jobElements = document.querySelectorAll(
+            'div.job-search-card, ' +
+            'div.base-search-card, ' +
+            'a.base-card__full-link, ' +
             '[data-entity-urn*="jobPosting"], ' +
             '.job-card-container, ' +
-            'li[data-occludable-job-id], ' +
-            'li[class*="job-card"], ' +
-            'a[class*="job-card"], ' +
-            '[class*="jobs-search-results"] li'
+            'li[data-occludable-job-id]'
         );
         if (jobElements.length > 0) {
-            // Return the element tag info for click strategy
             return 'ELEMENTS:' + jobElements.length + '|TAG:' + jobElements[0].tagName + '|CLS:' + (jobElements[0].className || '').substring(0,80);
         }
         
-        // Strategy C: Look for the search results panel and list all links
-        const panel = document.querySelector('[class*="search-results"], [class*="jobs-search"], main');
+        // Strategy 4: Look for search results panel
+        const panel = document.querySelector('main, [class*="search-results"], [class*="jobs-search"]');
         if (panel) {
             const allA = panel.querySelectorAll('a');
             const jobA = Array.from(allA).filter(a => a.href.includes('/jobs/'));
             if (jobA.length > 0) return jobA.map(a => a.href);
         }
         
-        // Strategy D: Dump page structure for debugging
-        const allElements = document.querySelectorAll('[class]');
-        const classNames = Array.from(allElements).slice(0, 30).map(el => el.className.substring(0,50)).filter(Boolean);
-        return 'NONE|CLASSES:' + classNames.join(',');
+        return 'NONE';
     }""")
 
 def main():
@@ -282,11 +313,20 @@ def main():
                 
                 time.sleep(4)
                 
-                # Dismiss cookie popup
+                # Dismiss cookie/privacy popup
                 try:
-                    dismiss = page.locator("button:has-text('Accepter'), button:has-text('Refuser'), .artdeco-global-alert-action button, [aria-label*=cookie], button:has-text('Autoriser')").first
-                    if dismiss.is_visible(timeout=3000):
-                        dismiss.click()
+                    dismiss = page.evaluate("""() => {
+                        const allBtns = document.querySelectorAll('button');
+                        for (const btn of allBtns) {
+                            const t = (btn.textContent || '').trim().toLowerCase();
+                            if (t.includes('accepter') || t.includes('accept') || t.includes('refuser') || t.includes('decline') || t.includes('reject') || t.includes('allow') || t.includes('autoriser')) {
+                                btn.click();
+                                return 'dismissed';
+                            }
+                        }
+                        return 'not-found';
+                    }""")
+                    if dismiss == 'dismissed':
                         log("  Cookie dismissed")
                         time.sleep(1)
                 except: pass
@@ -324,21 +364,23 @@ def main():
                                 break
                             
                             log(f"  Offre {idx+1}...")
-                            clicked = page.evaluate(f"""() => {{
-                                const els = document.querySelectorAll(
-                                    '[data-entity-urn*="jobPosting"], ' +
-                                    '.job-card-container, ' +
-                                    'li[data-occludable-job-id], ' +
-                                    'li[class*="job-card"], ' +
-                                    'a[class*="job-card"], ' +
-                                    '[class*="jobs-search-results"] li'
-                                );
-                                if (els[{idx}]) {{ 
-                                    els[{idx}].click(); 
-                                    return true; 
+                            clicked = page.evaluate(f"""(idx) => {{
+                                // Try multiple selectors for clicking job cards
+                                let els = document.querySelectorAll('ul.jobs-search__results-list div.job-search-card, ul.jobs-search__results-list div.base-search-card');
+                                if (els.length === 0) {{
+                                    els = document.querySelectorAll('div.job-search-card, div.base-search-card, a.base-card__full-link, [data-entity-urn*="jobPosting"], .job-card-container, li[data-occludable-job-id]');
+                                }}
+                                if (els[idx]) {{
+                                    if (els[idx].tagName === 'A') {{ els[idx].click(); }}
+                                    else {{ 
+                                        const link = els[idx].querySelector('a.base-card__full-link, a[href*="/jobs/view/"]');
+                                        if (link) link.click();
+                                        else els[idx].click();
+                                    }}
+                                    return true;
                                 }}
                                 return false;
-                            }}""")
+                            }}""", idx)
                             
                             if not clicked:
                                 log("    Click failed")
