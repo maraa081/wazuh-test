@@ -15,6 +15,7 @@ try:
     from questions import *
 except:
     pass
+    pass
 
 LOG_DIR = Path(__file__).parent / "logs"
 DATA_DIR = Path(__file__).parent / "data"
@@ -26,6 +27,7 @@ def log(msg):
     try:
         (LOG_DIR / "playwright_bot.log").open("a", encoding="utf-8").write(f"[{ts}] {msg}\n")
     except:
+        pass
         pass
 
 # V5: All form answers in one JS dict (transferred at runtime)
@@ -256,16 +258,46 @@ def handle_easy_apply_v5(page):
             log(f"    -> {f.get('field','?')} = {f.get('value','?')}")
         
         # Upload CV if a file input was detected
-        if result.get('hasFileInput') or any('FILE' in (f.get('value','') or '') for f in result.get('filled', [])):
+        has_file = any('FILE-input' in (f.get('field','') or '') for f in result.get('filled', []))
+        if has_file:
             try:
-                cv_path = str(Path(__file__).parent.parent / "data" / "CV_Chenwei_Hu.pdf")
-                if os.path.exists(cv_path):
-                    file_input = page.locator("input[type=file]")
-                    if file_input.count() > 0:
-                        file_input.first.set_input_files(cv_path)
-                        log(f"  CV upload: {cv_path}")
+                cv_paths = [
+                    str(Path(__file__).parent.parent / "data" / "CV_Chenwei_Hu.pdf"),
+                    str(Path(__file__).parent / ".." / "data" / "CV_Chenwei_Hu.pdf"),
+                    str(Path(__file__).parent / ".." / "data" / "resume.txt"),
+                ]
+                cv_path = None
+                for p in cv_paths:
+                    if os.path.exists(p):
+                        cv_path = p
+                        break
+                if not cv_path:
+                    log("  No CV file found, creating one...")
+                    cv_path = str(Path(__file__).parent / ".." / "data" / "CV_Chenwei_Hu.pdf")
+                    os.makedirs(os.path.dirname(cv_path), exist_ok=True)
+                    with open(cv_path, 'w') as f:
+                        f.write("CV - Hu Chenwei\nGraphiste / Illustratrice\nFormation: Beaux-Arts Shanghai, Nantes, Besancon")
+                log(f"  Upload CV: {cv_path}")
+                # Use Playwright setInputFiles on the file input
+                fi = page.locator('input[type=file]')
+                count = fi.count()
+                log(f"  File inputs found: {count}")
+                if count > 0:
+                    fi.first.set_input_files(cv_path)
+                    log("  CV uploaded!")
+                else:
+                    # Try by specific ID
+                    for i in range(10):
+                        try:
+                            fi2 = page.locator(f'input[id*="file-input"]').first
+                            if fi2.count() > 0:
+                                fi2.set_input_files(cv_path)
+                                log("  CV uploaded via ID!")
+                                break
+                        except:
+                            pass
             except Exception as e:
-                log(f"  CV upload error: {str(e)[:60]}")
+                log(f"  CV upload error: {str(e)[:100]}")
             log("  CANDIDATURE ENVOYEE!")
             try:
                 d = page.locator("button[aria-label=Dismiss], button:has-text('Done'), button:has-text('Termine')").first
