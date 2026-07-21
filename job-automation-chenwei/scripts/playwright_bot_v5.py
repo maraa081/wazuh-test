@@ -65,251 +65,58 @@ def click_easy_apply(page):
     }""")
 
 def handle_easy_apply_v5(page):
-    """
-    V5: Full JS-based form handler.
-    1. JS iterates ALL form fields (input, select, textarea)
-    2. Identifies phone by position after country code
-    3. Fills all fields with smart matching
-    4. Finds and clicks next/submit buttons
-    """
+    """V5: JS-based form handler. Reads JS from external file."""
+    import json
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    cv_uploaded_this_session = False
+    
+    # Read the JS handler
+    js_path = str(Path(__file__).parent / "easy_apply_handler_v5.js")
+    with open(js_path) as f:
+        js_handler = f.read()
+    
     for step in range(15):
         time.sleep(random.uniform(2, 3))
         
-        result = page.evaluate(f"""(step) => {{
-            {_ANSWERS_JS}
-            
-            // STEP A: Fill all form fields AND detect file inputs
-            const allFields = document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select, input[type=file]');
-            let lastWasCountry = false;
-            let filled = [];
-            let hasFileInput = false;
-            
-            for (const field of allFields) {{
-                // Handle file upload detection (CV/resume)
-                if (field.type === 'file') {{
-                    hasFileInput = true;
-                    filled.push({{field: 'FILE-input:' + field.id, type: 'file', value: 'NEED_UPLOAD'}});
-                    continue;
-                }}
-                // Already filled
-                if (field.value && field.value.trim()) {{
-                    // Check if this is a country code (France +33) -> next empty = phone
-                    lastWasCountry = field.value.includes('+33');
-                    continue;
-                }}
-                
-                // Detect phone: right after country code, or type=tel, or name contains phone
-                const tag = field.tagName.toLowerCase();
-                const type = (field.getAttribute('type') || '').toLowerCase();
-                const ph = (field.getAttribute('placeholder') || '').toLowerCase();
-                const aria = (field.getAttribute('aria-label') || '').toLowerCase();
-                const name = (field.getAttribute('name') || '').toLowerCase();
-                const cl = (field.className || '').toLowerCase();
-                const combined = ph + ' ' + aria + ' ' + name + ' ' + type + ' ' + cl;
-                
-                // DON'T fill search fields
-                if (combined.includes('chercher') || combined.includes('search') || combined.includes('recherch')) {{
-                    lastWasCountry = false;
-                    continue;
-                }}
-                
-                // Already has a relevant value
-                if (field.value && field.value.trim()) continue;
-                
-                let answer = null;
-                
-                // 1. Phone detection (identified by position or type)
-                if (lastWasCountry || type === 'tel' || name.includes('phone') || name.includes('mobile')) {{
-                    answer = ANSWERS.phone;
-                }}
-                // 2. Text matching against answers
-                else if (combined.includes('telephone') || combined.includes('phone') || combined.includes('mobile') || combined.includes('portable') || combined.includes('numero') || combined.includes('fixe') || combined.includes('+33') || combined.includes('06') || combined.includes('07')) {{
-                    answer = ANSWERS.phone;
-                }}
-                else if (combined.includes('portfolio') || combined.includes('site') || combined.includes('lien web') || combined.includes('url')) {{
-                    answer = ANSWERS.portfolio;
-                }}
-                else if (combined.includes('linkedin')) {{
-                    answer = ANSWERS.linkedin;
-                }}
-                else if (combined.includes('email') || combined.includes('courriel') || combined.includes('mail') || combined.includes('e-mail')) {{
-                    answer = ANSWERS.email;
-                }}
-                else if (combined.includes('motivation') || combined.includes('lettre') || combined.includes('pourquoi')) {{
-                    answer = ANSWERS.motivation;
-                }}
-                else if (combined.includes('salaire') || combined.includes('pretention') || combined.includes('remuneration')) {{
-                    answer = ANSWERS.salary;
-                }}
-                else if (combined.includes('disponible') || combined.includes('commencer') || combined.includes('debut')) {{
-                    answer = ANSWERS.availability;
-                }}
-                else if (combined.includes('experience') || combined.includes('parcours') || combined.includes('formation')) {{
-                    answer = ANSWERS.experience;
-                }}
-                else if (combined.includes('logiciel') || combined.includes('adobe') || combined.includes('competence') || combined.includes('outil')) {{
-                    answer = ANSWERS.skills;
-                }}
-                else if (combined.includes('langue') || combined.includes('langage') && !combined.includes('programmation')) {{
-                    answer = ANSWERS.languages;
-                }}
-                else if (combined.includes('visa') || combined.includes('sponsor') || combined.includes('travail') || combined.includes('autorisation')) {{
-                    answer = ANSWERS.visa;
-                }}
-                else if (combined.includes('rythme') || combined.includes('alternance') || combined.includes('temps')) {{
-                    answer = ANSWERS.rhythm;
-                }}
-                else if (combined.includes('annee') || combined.includes('years') || combined.includes('duree')) {{
-                    answer = ANSWERS.years;
-                }}
-                else if (combined.includes('souhaitez') || combined.includes('poste') || combined.includes('role') || combined.includes('titre') || combined.includes('fonction') || combined.includes('intitule') || combined.includes('position')) {{
-                    answer = ANSWERS.role;
-                }}
-                // 3. Empty visible text input with no attrs -> assume phone
-                else if (tag === 'input' && type === 'text' && !ph && !aria && !name) {{
-                    answer = ANSWERS.phone;
-                }}
-                
-                if (answer) {{
-                    field.focus();
-                    field.value = '';
-                    field.value = answer;
-                    field.dispatchEvent(new Event('input', {{bubbles: true}}));
-                    field.dispatchEvent(new Event('change', {{bubbles: true}}));
-                    filled.push({{field: tag + '#' + (field.id || ''), type: type, value: answer.substring(0,15)}});
-                }}
-                
-                lastWasCountry = field.value && field.value.includes('+33');
-            }}
-            
-            // STEP B: Find and click next/submit button
-            const allBtns = document.querySelectorAll('button');
-            const skipNavText = ['vous', 'emplois', 'reseau', 'messagerie', 'notification', 'accueil', 'profil', 'jobs', 'network', 'messaging', 'notifications', 'home', 'raccourci', 'fermer le menu', 'acceder a la recherche', 'passer au contenu', 'conditions', 'solutions', 'telecharger', 'plus', 'publicite', 'toutes les candidatures'];
-            let btnClicked = null;
-            
-            // Strategy 1: Match text exactly
-            const nextTerms = ['suivant', 'next', 'continuer', 'continue', 'examiner', 'review', 'envoyer', 'submit', 'postuler', 'apply', 'send', 'done', 'termine', 'terminer'];
-            for (const btn of allBtns) {{
-                if (btn.offsetParent === null) continue;
-                const t = (btn.textContent || '').trim().toLowerCase();
-                const cl = (btn.className || '').toLowerCase();
-                if (!t) continue;
-                if (skipNavText.some(s => t === s)) continue;
-                if (nextTerms.some(term => t === term || t.startsWith(term))) {{
-                    btn.click();
-                    btnClicked = t.substring(0,20);
-                    break;
-                }}
-            }}
-            
-            // Strategy 2: Primary styled buttons, not navigation
-            if (!btnClicked) {{
-                for (const btn of allBtns) {{
-                    if (btn.offsetParent === null) continue;
-                    const t = (btn.textContent || '').trim().toLowerCase();
-                    const cl = (btn.className || '').toLowerCase();
-                    if (!t) continue;
-                    if (skipNavText.some(s => t.includes(s))) continue;
-                    if (cl.includes('primary')) {{
-                        const rect = btn.getBoundingClientRect();
-                        if (rect.width > 50) {{
-                            btn.click();
-                            btnClicked = 'pri:' + t.substring(0,15);
-                            break;
-                        }}
-                    }}
-                }}
-            }}
-            
-            if (!btnClicked) {{
-                // Strategy 3: Any visible button not in nav, not save/close, prefer bottom
-                const candidates = Array.from(allBtns).filter(b => {{
-                    if (b.offsetParent === null) return false;
-                    const t = (b.textContent || '').trim().toLowerCase();
-                    if (!t) return false;
-                    const skip = ['fermer', 'close', 'cancel', 'annuler', 'x', '...', 'enregistrer', 'save', 'suivre', 'follow', 'vous', 'emplois', 'accueil', 'messagerie', 'plus', 'partager'];
-                    return !skip.some(s => t === s || t.startsWith(s));
-                }});
-                // Sort by vertical position (bottom-most is likely the modal button)
-                candidates.sort((a,b) => {{
-                    const ra = a.getBoundingClientRect();
-                    const rb = b.getBoundingClientRect();
-                    return (rb.top + rb.height) - (ra.top + ra.height);
-                }});
-                if (candidates.length > 0) {{
-                    const btn = candidates[0];
-                    const rect = btn.getBoundingClientRect();
-                    if (rect.width > 50 && rect.height > 20) {{
-                        btn.click();
-                        btnClicked = 'pos:' + (btn.textContent || '').trim().substring(0,15);
-                    }}}}
-            }}
-            
-            // Check if done
-            // Check if application was truly submitted
-            const modalOverlay = document.querySelector('[class*="artdeco-modal-overlay"]');
-            
-            const successText = document.body.innerText || '';
-            // Only done if: modal is gone AND success text is shown
-            // OR specific success button exists
-            const allBtns2 = document.querySelectorAll('button');
-            const hasSubmitAnother = Array.from(allBtns2).some(b => (b.textContent || '').includes('Envoyer une autre candidature'));
-            const hasDoneBtn = Array.from(allBtns2).some(b => ['Terminer', 'Termine', 'Done', 'Dismiss'].includes((b.textContent || '').trim()));
-            
-            const done = hasSubmitAnother || hasDoneBtn;
-            
-            return {{ filledCount: filled.length, filled: filled.slice(0,5), button: btnClicked, step: step, done: done }};
-        }}""", step)
+        # Execute JS and parse result
+        result_json = page.evaluate(js_handler, step, cv_uploaded_this_session)
+        if isinstance(result_json, str):
+            result = json.loads(result_json)
+        else:
+            result = result_json
         
-        log(f"  Step {step+1}: fill={result.get('filledCount',0)} btn={result.get('button','none')}")
-        for f in result.get('filled', []):
-            log(f"    -> {f.get('field','?')} = {f.get('value','?')}")
+        log(f"  Step {step+1}: fill={result.get("filledCount",0)} btn={result.get("button","none")}")
+        for f in result.get("filled", []):
+            log(f"    -> {f.get("field","?")} = {f.get("value","?")}")
         
-        # Upload CV if a file input was detected
-        has_file = any('FILE-input' in (f.get('field','') or '') for f in result.get('filled', []))
-        if has_file:
-            try:
-                cv_paths = [
-                    str(Path(__file__).parent.parent / "data" / "CV_Chenwei_Hu.pdf"),
-                    str(Path(__file__).parent / ".." / "data" / "CV_Chenwei_Hu.pdf"),
-                    str(Path(__file__).parent / ".." / "data" / "resume.txt"),
-                ]
-                cv_path = None
-                for p in cv_paths:
-                    if os.path.exists(p):
-                        cv_path = p
-                        break
-                if not cv_path:
-                    log("  No CV file found, creating one...")
-                    cv_path = str(Path(__file__).parent / ".." / "data" / "CV_Chenwei_Hu.pdf")
-                    os.makedirs(os.path.dirname(cv_path), exist_ok=True)
-                    with open(cv_path, 'w') as f:
-                        f.write("CV - Hu Chenwei\nGraphiste / Illustratrice\nFormation: Beaux-Arts Shanghai, Nantes, Besancon")
-                log(f"  Upload CV: {cv_path}")
-                # Use Playwright setInputFiles on the file input
-                fi = page.locator('input[type=file]')
-                count = fi.count()
-                log(f"  File inputs found: {count}")
-                if count > 0:
-                    fi.first.set_input_files(cv_path)
-                    log("  CV uploaded!")
-                    time.sleep(3)  # Wait for LinkedIn to process
-                    log("  Waiting for file processing...")
-                    time.sleep(2)
-                else:
-                    for i in range(10):
-                        try:
-                            fi2 = page.locator(f'input[id*="file-input"]').first
-                            if fi2.count() > 0:
-                                fi2.set_input_files(cv_path)
-                                log("  CV uploaded via ID!")
-                                time.sleep(3)
-                                break
-                        except:
-                            pass
-            except Exception as e:
-                log(f"  CV upload error: {str(e)[:100]}")
+        # Upload CV if file input detected and not yet uploaded
+        if result.get("hasFile") and not cv_uploaded_this_session:
+            cv_paths = [
+                str(Path(__file__).parent.parent / "data" / "CV_Chenwei_Hu.pdf"),
+                str(Path(__file__).parent / ".." / "data" / "CV_Chenwei_Hu.pdf"),
+            ]
+            cv_path = None
+            for p in cv_paths:
+                if os.path.exists(p):
+                    cv_path = p
+                    break
+            if not cv_path:
+                log("  Creating CV...")
+                cv_path = str(Path(__file__).parent / ".." / "data" / "CV_Chenwei_Hu.pdf")
+                os.makedirs(os.path.dirname(cv_path), exist_ok=True)
+                with open(cv_path, "w") as f:
+                    f.write("CV - Hu Chenwei\nGraphiste / Illustratrice\nFormation: Beaux-Arts")
+            log(f"  Upload CV: {cv_path}")
+            fi = page.locator("input[type=file]")
+            if fi.count() > 0:
+                fi.first.set_input_files(cv_path)
+                log("  CV uploaded!")
+                cv_uploaded_this_session = True
+                time.sleep(5)  # LinkedIn needs time to process
+            else:
+                log("  No file input found")
+        
+        if result.get("done"):
             log("  CANDIDATURE ENVOYEE!")
             try:
                 d = page.locator("button[aria-label=Dismiss], button:has-text('Done'), button:has-text('Termine')").first
@@ -317,8 +124,8 @@ def handle_easy_apply_v5(page):
             except: pass
             return True
         
-        if not result.get('button'):
-            log(f"    Plus de bouton")
+        if not result.get("button"):
+            log("    Plus de bouton")
             break
     return False
 
