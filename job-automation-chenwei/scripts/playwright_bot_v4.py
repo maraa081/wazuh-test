@@ -168,35 +168,58 @@ def handle_easy_apply(page):
     return False
 
 def click_easy_apply(page):
-    """Find and click Easy Apply button using multiple strategies."""
+    """Find and click Easy Apply button in the job detail panel (right side)."""
     result = page.evaluate("""() => {
-        const terms = ["Easy Apply", "Candidature simplifiée", "Postuler facilement",
-                        "Candidature simplifiee", "Apply", "Postuler", "Postulez",
-                        "easyapply", "easy_apply"];
-        const allElements = document.querySelectorAll('button, a, span, div, [role=button]');
-        for (const el of allElements) {
-            const t = (el.textContent || '').trim();
-            const tl = t.toLowerCase().replace(/\\s+/g, '');
-            const cl = (el.className || '').toLowerCase();
+        // Only search the job detail panel on the right, not the whole page
+        const panel = document.querySelector('[class*="jobs-details"], [class*="job-details"], [class*="jobs-order"]');
+        const searchArea = panel || document;
+        
+        // Strategy 1: Find the exact Easy Apply button by text inside the panel
+        const allEls = searchArea.querySelectorAll('button');
+        const terms = ["easy apply", "candidature simplifiée", "candidature simplifiee",
+                       "postuler facilement", "apply"];
+        
+        // Exact match first
+        for (const btn of allEls) {
+            const t = (btn.textContent || '').trim().toLowerCase();
+            const cl = (btn.className || '').toLowerCase();
+            if (cl.includes('easy-apply') || cl.includes('jobs-apply')) {
+                btn.click();
+                return {found: true, text: btn.textContent.trim().substring(0,30)};
+            }
             for (const term of terms) {
-                if (tl === term.toLowerCase().replace(/\\s+/g, '') ||
-                    tl.includes(term.toLowerCase().replace(/\\s+/g, '')) ||
-                    cl.includes('easy-apply') || cl.includes('easy_apply')) {
-                    el.click();
-                    return {found: true, text: t.substring(0,30), tag: el.tagName};
+                if (t === term || t.startsWith(term) || t.includes(term)) {
+                    btn.click();
+                    return {found: true, text: btn.textContent.trim().substring(0,30)};
                 }
             }
         }
-        // Fallback: any button with job-related action
-        const btns = document.querySelectorAll('button');
-        for (const btn of btns) {
-            const cls = (btn.className || '') + (btn.getAttribute('aria-label') || '');
-            const txt = (btn.textContent || '').toLowerCase();
-            if (cls.includes('apply') || txt.includes('postul') || txt.includes('candid')) {
+        
+        // Strategy 2: Primary blue button that says something about applying
+        const primaryBtns = searchArea.querySelectorAll('button.artdeco-button--primary');
+        for (const btn of primaryBtns) {
+            const t = (btn.textContent || '').trim().toLowerCase();
+            if (t.includes('postul') || t.includes('candid') || t.includes('apply') || t.includes('facile')) {
                 btn.click();
-                return {found: true, text: txt.substring(0,30), tag: 'BUTTON-fallback'};
+                return {found: true, text: btn.textContent.trim().substring(0,30)};
             }
         }
+        
+        // Strategy 3: Any primary/large button NOT being Save/Follow/Message
+        for (const btn of allEls) {
+            const t = (btn.textContent || '').trim().toLowerCase();
+            const skipTerms = ['enregistrer', 'save', 'message', 'follow', 'suivre', 'plus', '...', 'x', 'signaler', 'signal'];
+            if (skipTerms.some(s => t === s || t.startsWith(s))) continue;
+            const cl = (btn.className || '').toLowerCase();
+            if (cl.includes('primary') || cl.includes('apply') || cl.includes('postul')) {
+                const rect = btn.getBoundingClientRect();
+                if (rect.width > 80) {  // Only wide buttons
+                    btn.click();
+                    return {found: true, text: btn.textContent.trim().substring(0,30)};
+                }
+            }
+        }
+        
         return {found: false, text: 'none'};
     }""")
     return result.get('found', False)
