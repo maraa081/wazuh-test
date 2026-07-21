@@ -29,20 +29,20 @@ def log(msg):
         pass
 
 _ANSWERS = {
-    "portfolio|site|lien web": "https://github.com/maraa081/wazuh-test/tree/main/test",
+    "portfolio|site|lien web|web|url": "https://github.com/maraa081/wazuh-test/tree/main/test",
     "linkedin": "https://www.linkedin.com/in/chenwei-h-9223b3422/",
-    "telephone|phone|mobile": "+33678352974",
-    "email|courriel": "via0000413@gmail.com",
+    "telephone|phone|mobile|tel|portable|fixe": "+33678352974",
+    "email|courriel|e-mail|mail": "via0000413@gmail.com",
     "motivation|lettre|pourquoi": "Artiste et designer visuelle formee aux Beaux-Arts de Shanghai, Nantes et Besancon. Je recherche une alternance en design graphique, illustration ou branding.",
-    "salaire|pretention": "A discuter selon la grille de l'ecole",
-    "disponible|disponibilite|commencer": "A partir de septembre 2026",
+    "salaire|pretention|remuneration": "A discuter selon la grille de l'ecole",
+    "disponible|disponibilite|commencer|debut": "A partir de septembre 2026",
     "experience|parcours|formation": "Formation Beaux-Arts Shanghai, Nantes, Besancon. Projets identite visuelle Yuffee, exposition Shanghai, collaboration Artgogo x Brother China",
-    "logiciel|adobe|competence": "Photoshop, Illustrator, InDesign, Procreate, ZBrush, Figma",
-    "langue": "Chinois (maternel), Francais (B2), Anglais (intermediaire)",
-    "visa|sponsor|autorisation": "Non - Titre de sejour valide",
-    "rythme|alternance": "3j entreprise / 2j ecole",
-    "annee|years": "2",
-    "souhaitez|poste|role": "Graphiste / Illustratrice en alternance",
+    "logiciel|adobe|competence|outil": "Photoshop, Illustrator, InDesign, Procreate, ZBrush, Figma",
+    "langue|langue": "Chinois (maternel), Francais (B2), Anglais (intermediaire)",
+    "visa|sponsor|autorisation|travail": "Non - Titre de sejour valide",
+    "rythme|alternance|temps": "3j entreprise / 2j ecole",
+    "annee|years|duree": "2",
+    "souhaitez|poste|role|titre|fonction|intitule": "Graphiste / Illustratrice en alternance",
 }
 
 def answer_question(question_text):
