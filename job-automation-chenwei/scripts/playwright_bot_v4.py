@@ -278,21 +278,46 @@ def main():
                 page.evaluate("window.scrollTo(0, 0)")
                 time.sleep(2)
                 
-                # Use JS to find all job card links
+                # Debug: screenshot + page HTML snippet
+                try:
+                    page.screenshot(path=str(LOG_DIR / "debug_search.png"))
+                except: pass
+                page_title = page.evaluate("document.title")
+                log(f"  Page title: {page_title[:80]}")
+                
+                # Use JS to find ALL clickable links in the page
                 job_count = page.evaluate("""() => {
-                    // Try multiple known LinkedIn selectors
-                    let cards = document.querySelectorAll('a.job-card-list__title, a[class*=job-card], a[data-job-id], .job-card-container a:first-child, li[data-entity-urn] a');
-                    if (cards.length === 0) {
-                        cards = document.querySelectorAll('[class*=job-card] a[href*="/jobs/view/"]');
+                    // Get ALL links on the page
+                    const allLinks = Array.from(document.querySelectorAll('a[href]'));
+                    const jobLinks = allLinks.filter(a => a.href.includes('/jobs/view/') || a.href.includes('/jobs/collections/'));
+                    
+                    // Try more selectors
+                    const selectors = [
+                        'a.job-card-list__title',
+                        'a[class*=job-card]',
+                        'a[data-job-id]',
+                        '.job-card-container a:first-child',
+                        'li[data-entity-urn] a',
+                        '[class*=job-card] a[href*="/jobs/view/"]',
+                        '[data-entity-urn*=jobPosting]',
+                        'li[data-occludable-job-id]',
+                        '.scaffold-layout__list-item',
+                        '[class*=jobs-search-results] li',
+                        'article',
+                    ];
+                    for (const sel of selectors) {
+                        const els = document.querySelectorAll(sel);
+                        if (els.length > 0) return {count: els.length, selector: sel, sample: (els[0].outerHTML || '').substring(0,200)};
                     }
-                    if (cards.length === 0) {
-                        // Fallback: any job link in the left panel
-                        const panel = document.querySelector('.jobs-search-results-list') || document.querySelector('[class*=search-results]');
-                        if (panel) cards = panel.querySelectorAll('a[href*="/jobs/view/"]');
-                    }
-                    return cards.length;
+                    
+                    // Last resort: any link with job-related text
+                    if (jobLinks.length > 0) return {count: jobLinks.length, selector: 'any-job-link', sample: jobLinks[0].href};
+                    
+                    return {count: 0, selector: 'none', sample: allLinks.length + ' total links on page'};
                 }""")
-                log(f"  {job_count} offres chargees")
+                log(f"  Result: {job_count}")
+                log(f"  Selector found: {job_count.get('selector', '?')}")
+                log(f"  Sample: {job_count.get('sample', '?')[:120]}")
                 
                 for i in range(min(job_count if job_count else 10, 5)):
                     if total_applied >= max_apps: break
