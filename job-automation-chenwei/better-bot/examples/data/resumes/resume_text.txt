@@ -1,0 +1,172 @@
+[Full Name]
+Gender: [Male/Female/Prefer not to say/Other]
+Phone: [Phone number]
+Email: [Email address]
+LinkedIn: [LinkedIn profile URL]
+GitHub: [GitHub profile URL or Not applicable]
+Date of Birth: [Date of birth or Not specified]
+Nationality: [Nationality or Not specified]
+Current Location: [City, Country]
+Languages: [Language 1], [Language 2], [Language 3]
+Visa Status: [Visa status or Not specified]
+Current Salary: [Current salary or Not specified]
+Expected Salary: [Expected salary or Not specified]
+Middle name: [Middle name or Not applicable]
+Notice Period: [Notice period]
+Salary Range USD: [Expected salary range in USD or Not specified]
+veteran: [Yes/No/Prefer not to say/Not applicable]
+disability: [Yes/No/Prefer not to say/Not applicable]
+remote_work: [Yes/No]
+in_person_work: [Yes/No]
+open_to_relocation: [Yes/No]
+willing_to_complete_assessments: [Yes/No/Maybe]
+willing_to_undergo_drug_tests: [Yes/No/Maybe]
+willing_to_undergo_background_checks: [Yes/No/Maybe]
+marital status: [Marital status or Prefer not to say]
+Religion: [Religion or Prefer not to say]
+
+Professional Title
+    [Your professional title, for example: Software Engineer, Product Manager, Finance Manager, CTO, Data Analyst]
+
+Professional Summary
+    [Write 1 to 2 paragraphs summarizing your years of experience, industries, main strengths, leadership scope, technical or functional expertise, and career positioning.]
+
+    [Optional second paragraph describing your recent focus, specialization, tools, platforms, domain knowledge, or target direction.]
+
+Core Strengths
+    - [Core strength 1]
+    - [Core strength 2]
+    - [Core strength 3]
+    - [Core strength 4]
+    - [Core strength 5]
+    - [Core strength 6]
+    - [Core strength 7]
+
+Selected Career History
+
+    [Job Title 1]
+        [Company Name], [City, Country]
+        [Start Month Year] - [End Month Year or Present]
+        [Company/project website URL if relevant]
+        Industry: [Industry]
+        Overview:
+        [Short description of the company, product, department, or business context.]
+
+        Key Achievements and Responsibilities:
+        - [Achievement or responsibility 1]
+        - [Achievement or responsibility 2]
+        - [Achievement or responsibility 3]
+        - [Achievement or responsibility 4]
+        - [Achievement or responsibility 5]
+        - [Achievement or responsibility 6]
+        - [Achievement or responsibility 7]
+
+        Technologies Used:
+        [Technology/tool/methodology 1], [Technology/tool/methodology 2], [Technology/tool/methodology 3]
+
+    [Job Title 2]
+        [Company Name], [City, Country]
+        [Start Month Year] - [End Month Year]
+        [Company/project website URL if relevant]
+        Industry: [Industry]
+        Overview:
+        [Short description of the company, product, department, or business context.]
+
+        Key Achievements and Responsibilities:
+        - [Achievement or responsibility 1]
+        - [Achievement or responsibility 2]
+        - [Achievement or responsibility 3]
+        - [Achievement or responsibility 4]
+        - [Achievement or responsibility 5]
+
+        Technologies Used:
+        [Technology/tool/methodology 1], [Technology/tool/methodology 2], [Technology/tool/methodology 3]
+
+    [Job Title 3]
+        [Company Name], [City, Country]
+        [Start Month Year] - [End Month Year]
+        Industry: [Industry]
+        Overview:
+        [Short description of the company, product, department, or business context.]
+
+        Key Achievements and Responsibilities:
+        - [Achievement or responsibility 1]
+        - [Achievement or responsibility 2]
+        - [Achievement or responsibility 3]
+        - [Achievement or responsibility 4]
+
+        Technologies Used:
+        [Technology/tool/methodology 1], [Technology/tool/methodology 2], [Technology/tool/methodology 3]
+
+Earlier Background
+    [Summarize earlier experience that is useful but does not need full detail. Mention industries, types of systems, leadership scope, or technical/domain foundation.]
+
+Skills
+    [Skill Category 1]
+    - [Skill 1]
+    - [Skill 2]
+    - [Skill 3]
+    - [Skill 4]
+    - [Skill 5]
+
+    [Skill Category 2]
+    - [Skill 1]
+    - [Skill 2]
+    - [Skill 3]
+    - [Skill 4]
+    - [Skill 5]
+
+    [Skill Category 3]
+    - [Skill 1]
+    - [Skill 2]
+    - [Skill 3]
+    - [Skill 4]
+    - [Skill 5]
+
+    [Skill Category 4]
+    - [Skill 1]
+    - [Skill 2]
+    - [Skill 3]
+    - [Skill 4]
+    - [Skill 5]
+
+Education
+    [Degree, Certificate, or Program Name]
+    [Institution Name]
+    [City, Country or Remote]
+    [Start Year] - [End Year]
+    [Credential link if available]
+    [GPA, honors, distinction, or additional details if relevant]
+
+    [Degree, Certificate, or Program Name]
+    [Institution Name]
+    [City, Country or Remote]
+    [Start Year] - [End Year]
+    [GPA, honors, distinction, or additional details if relevant]
+
+Certifications
+    - [Certification 1], [Issuer], [Year]
+    - [Certification 2], [Issuer], [Year]
+
+Projects
+    [Project Name 1]
+        Link: [Project URL]
+        Description:
+        [Describe the project, your role, the problem solved, the outcome, and the technologies or skills used.]
+
+    [Project Name 2]
+        Link: [Project URL]
+        Description:
+        [Describe the project, your role, the problem solved, the outcome, and the technologies or skills used.]
+
+Achievements
+    - [Achievement 1]
+    - [Achievement 2]
+    - [Achievement 3]
+
+Additional Notes
+- Nationality: [Nationality]
+- Current base: [Current city/country]
+- Fluent in [Languages]
+- Career focus: [Target roles, industries, or career direction]
+- Interested in roles spanning [Role 1], [Role 2], [Role 3], [Role 4]
