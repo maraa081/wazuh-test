@@ -285,14 +285,17 @@ def handle_easy_apply_v5(page):
                 if count > 0:
                     fi.first.set_input_files(cv_path)
                     log("  CV uploaded!")
+                    time.sleep(3)  # Wait for LinkedIn to process
+                    log("  Waiting for file processing...")
+                    time.sleep(2)
                 else:
-                    # Try by specific ID
                     for i in range(10):
                         try:
                             fi2 = page.locator(f'input[id*="file-input"]').first
                             if fi2.count() > 0:
                                 fi2.set_input_files(cv_path)
                                 log("  CV uploaded via ID!")
+                                time.sleep(3)
                                 break
                         except:
                             pass
