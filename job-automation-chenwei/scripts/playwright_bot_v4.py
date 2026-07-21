@@ -31,7 +31,7 @@ def log(msg):
 _ANSWERS = {
     "portfolio|site|lien web|web|url": "https://github.com/maraa081/wazuh-test/tree/main/test",
     "linkedin": "https://www.linkedin.com/in/chenwei-h-9223b3422/",
-    "telephone|phone|mobile|tel|portable|fixe": "+33678352974",
+    "telephone|phone|mobile|tel|portable|fixe|numero|numéro|numéro de téléphone|numéro de telephone|+33|06|07": "+33678352974",
     "email|courriel|e-mail|mail": "via0000413@gmail.com",
     "motivation|lettre|pourquoi": "Artiste et designer visuelle formee aux Beaux-Arts de Shanghai, Nantes et Besancon. Je recherche une alternance en design graphique, illustration ou branding.",
     "salaire|pretention|remuneration": "A discuter selon la grille de l'ecole",
@@ -65,13 +65,18 @@ def handle_easy_apply(page):
         try:
             for inp in page.locator("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea").all():
                 if inp.get_attribute("value"): continue
+                inp_type = inp.get_attribute("type") or ""
                 ph = (inp.get_attribute("placeholder") or "").strip()
                 aria = (inp.get_attribute("aria-label") or "").strip()
                 name = (inp.get_attribute("name") or "").strip()
-                txt = f"{ph} {aria} {name}"
+                txt = f"{ph} {aria} {name} {inp_type}"
+                # Phone detection: type=tel or starts with 0/+
+                if 'tel' in inp_type or 'phone' in inp_type:
+                    try: inp.fill('+33678352974'); log(f"    Rempli TEL: {inp_type}"); time.sleep(0.3); continue
+                    except: pass
                 answer = answer_question(txt)
                 if answer:
-                    try: inp.fill(answer); log(f"    Rempli: {txt[:20]}..."); time.sleep(0.3)
+                    try: inp.fill(answer); log(f"    Rempli: {txt[:25]}..."); time.sleep(0.3)
                     except: pass
         except: pass
 
