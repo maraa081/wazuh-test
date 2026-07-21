@@ -82,37 +82,68 @@ def handle_easy_apply(page):
                     except: pass
         except: pass
         
-        # Find and click the next/submit button using JS
+        # Find and click the next/submit button - LinkedIn Easy Apply specific
         result = page.evaluate("""() => {
-            const terms = ["Suivant", "Next", "Submit", "Examiner", "Review",
-                           "Envoyer", "Postuler", "Apply", "Save", "Done",
-                           "Terminer", "Termine", "Continuer", "Continue"];
-            const allEls = document.querySelectorAll('button, span[role=button], div[role=button], a[role=button]');
-            for (const el of allEls) {
-                const t = (el.textContent || '').trim();
+            // Strategy 1: Primary action button in the modal (blue, prominent)
+            const modal = document.querySelector('[class*="artdeco-modal"], [class*="modal"], [class*="easy-apply"]') || document;
+            const allBtns = modal.querySelectorAll('button');
+            
+            // Strategy 1: Primary blue button (artdeco-button--primary)
+            const primaryBtns = modal.querySelectorAll('button.artdeco-button--primary');
+            for (const btn of primaryBtns) {
+                const t = (btn.textContent || '').trim().toLowerCase();
+                if (t && !t.includes('fermer') && !t.includes('close') && !t.includes('cancel') && !t.includes('annuler') && !t.includes('x')) {
+                    btn.click();
+                    return {found: true, text: btn.textContent.trim().substring(0,20)};
+                }
+            }
+            
+            // Strategy 2: Match button text in modal
+            const nextTerms = ['suivant', 'next', 'continuer', 'continue', 'examiner', 'review', 'envoyer', 'submit', 'postuler', 'apply', 'send', 'done', 'termine', 'terminer'];
+            for (const btn of allBtns) {
+                if (btn.offsetParent === null) continue;
+                const t = (btn.textContent || '').trim().toLowerCase().replace(/[\u00a0]/g, ' ');
                 if (!t) continue;
-                const tl = t.toLowerCase().replace(/[\s\u00A0]+/g, ' ');
-                for (const term of terms) {
-                    if (tl === term.toLowerCase() || tl.startsWith(term.toLowerCase())) {
-                        el.click();
-                        return {found: true, text: t.substring(0,20)};
+                for (const term of nextTerms) {
+                    if (t === term || t.startsWith(term)) {
+                        btn.click();
+                        return {found: true, text: btn.textContent.trim().substring(0,20)};
                     }
                 }
             }
-            // Fallback: last visible button in the modal
-            const modal = document.querySelector('[class*="artdeco-modal"], [class*="modal"], [class*="easy-apply"]') || document;
-            const btns = modal.querySelectorAll('button');
-            const visibleBtns = Array.from(btns).filter(b => b.offsetParent !== null && b.textContent.trim());
-            if (visibleBtns.length > 0) {
-                const last = visibleBtns[visibleBtns.length-1];
-                const txt = (last.textContent || '').trim();
-                // Dont click cancel/close buttons
-                if (!txt.toLowerCase().includes('cancel') && !txt.toLowerCase().includes('fermer') && !txt.toLowerCase().includes('close') && !txt.toLowerCase().includes('annuler')) {
-                    last.click();
-                    return {found: true, text: 'fallback:' + txt.substring(0,20)};
+            
+            // Strategy 3: Wide/decorative buttons (not tiny icons)
+            for (const btn of allBtns) {
+                if (btn.offsetParent === null) continue;
+                const rect = btn.getBoundingClientRect();
+                if (rect.width < 30 || rect.height < 20) continue;  // skip tiny buttons
+                const t = (btn.textContent || '').trim().toLowerCase();
+                if (!t || t.includes('fermer') || t.includes('close') || t.includes('annuler') || t.includes('save') || t.includes('enregistrer') || t === 'x' || t === '...') continue;
+                const cls = (btn.className || '').toLowerCase();
+                if (cls.includes('primary') || cls.includes('submit')) {
+                    btn.click();
+                    return {found: true, text: btn.textContent.trim().substring(0,20)};
                 }
             }
-            return {found: false, text: '' };
+            
+            // Strategy 4: Last NON-close/non-save visible button
+            const candidates = Array.from(allBtns).filter(b => {
+                if (b.offsetParent === null) return false;
+                const t = (b.textContent || '').trim().toLowerCase();
+                if (!t) return false;
+                const skip = ['fermer', 'close', 'cancel', 'annuler', 'save', 'enregistrer', 'x', '...'];
+                return !skip.some(s => t === s || t.startsWith(s));
+            });
+            if (candidates.length > 0) {
+                const last = candidates[candidates.length-1];
+                // Only click if it's a meaningful button (not a close X)
+                const rect = last.getBoundingClientRect();
+                if (rect.width > 40) {
+                    last.click();
+                    return {found: true, text: 'btn:' + (last.textContent || '').trim().substring(0,15)};
+                }
+            }
+            return {found: false, text: ''};
         }""")
         
         if result.get('found'):
