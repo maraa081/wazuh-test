@@ -47,6 +47,9 @@ _ANSWERS = {
 
 def answer_question(question_text):
     q = question_text.lower()
+    # Skip search/query type fields ("Chercher par...", "Search...")
+    if 'chercher' in q or 'search' in q or 'rechercher' in q:
+        return None
     for keywords, answer in _ANSWERS.items():
         if any(w in q for w in keywords.split("|")):
             return answer
