@@ -234,7 +234,7 @@ def handle_easy_apply_v5(page):
                     if (rect.width > 50 && rect.height > 20) {{
                         btn.click();
                         btnClicked = 'pos:' + (btn.textContent || '').trim().substring(0,15);
-                    }}}
+                    }}}}
             }}
             
             // Check if done
