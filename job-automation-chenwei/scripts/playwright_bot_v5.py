@@ -116,6 +116,21 @@ def handle_easy_apply_v5(page):
             else:
                 log("  No file input found")
         
+        # After uploading file, wait and try clicking Suivant manually
+        if result.get("hasFile"):
+            log("  File uploaded, waiting for processing...")
+            time.sleep(8)
+            # Try clicking Suivant from Python side (reliable Playwright click)
+            for text in ["Suivant", "Next", "Continuer", "Examiner", "Review", "Envoyer", "Submit"]:
+                try:
+                    btn = page.locator(f"button:has-text('{text}')").first
+                    if btn.is_visible(timeout=2000):
+                        btn.click()
+                        log(f"    Clicked: {text}")
+                        time.sleep(3)
+                        break
+                except: pass
+        
         if result.get("done"):
             log("  CANDIDATURE ENVOYEE!")
             try:
@@ -125,7 +140,20 @@ def handle_easy_apply_v5(page):
             return True
         
         if not result.get("button"):
-            log("    Plus de bouton")
+            log("    Plus de bouton detecte par JS")
+            # If we uploaded a file, try clicking with Playwright directly
+            if cv_uploaded_this_session:
+                log("    Trying Playwright direct button click...")
+                for text in ["Suivant", "Next", "Continuer", "Examiner", "Review", "Envoyer", "Submit", "Postuler", "Apply"]:
+                    try:
+                        btn = page.locator(f"button:has-text('{text}')").first
+                        if btn.is_visible(timeout=2000):
+                            btn.click()
+                            log(f"    Clicked: {text}")
+                            time.sleep(3)
+                            cv_uploaded_this_session = False  # Force re-check
+                            break
+                    except: pass
             break
     return False
 
