@@ -168,62 +168,36 @@ def handle_easy_apply(page):
     return False
 
 def click_easy_apply(page):
-    """Find and click Easy Apply button. Search whole page but smart filter."""
+    """Find and click Easy Apply button. LinkedIn class: jobs-apply-button."""
     result = page.evaluate("""() => {
-        // Search ALL buttons on the page
+        // Strategy 1: Direct class match (the REAL Easy Apply button)
+        const applyBtn = document.querySelector('button.jobs-apply-button');
+        if (applyBtn && applyBtn.offsetParent !== null) {
+            applyBtn.click();
+            return {found: true, text: (applyBtn.textContent || '').trim().substring(0,30)};
+        }
+        
+        // Strategy 2: Text match on visible buttons
         const allBtns = document.querySelectorAll('button');
+        const terms = ["candidature simplifiée", "candidature simplifiee", 
+                       "easy apply", "postuler facilement", "apply"];
+        const skipCls = ["jobs-save-button", "follow", "msg-overlay"];
         
-        // Terms to identify Easy Apply
-        const applyTerms = ["easy apply", "candidature simplifiée", "candidature simplifiee",
-                            "postuler facilement", "apply", "candidature"];
-        const skipTerms = ["enregistrer", "save", "message", "follow", "suivre", 
-                          "plus", "...", "signaler", "signal", "pour les entrep"];
-        
-        // Strategy 1: Exact match on any button (class or text contains Easy Apply)
         for (const btn of allBtns) {
+            if (btn.offsetParent === null) continue;
             const t = (btn.textContent || '').trim().toLowerCase();
             const cl = (btn.className || '').toLowerCase();
-            const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
-            const combined = t + ' ' + cl + ' ' + aria;
             
-            // Skip known non-apply buttons
-            if (skipTerms.some(s => t.includes(s) || t === s)) continue;
+            if (skipCls.some(s => cl.includes(s))) continue;
             
-            // Check if it mentions applying
-            if (cl.includes('easy-apply') || cl.includes('jobs-apply') ||
-                aria.includes('apply') || aria.includes('candidature') ||
-                applyTerms.some(term => t.includes(term))) {
+            if (cl.includes('jobs-apply') || terms.some(term => t.includes(term))) {
                 btn.click();
-                return {found: true, text: btn.textContent.trim().substring(0,30)};
+                return {found: true, text: (btn.textContent || '').trim().substring(0,30)};
             }
         }
         
-        // Strategy 2: Primary blue buttons - check all, skip non-apply
-        for (const btn of allBtns) {
-            const t = (btn.textContent || '').trim().toLowerCase();
-            const cl = (btn.className || '').toLowerCase();
-            
-            if (skipTerms.some(s => t.includes(s) || t === s)) continue;
-            const rect = btn.getBoundingClientRect();
-            
-            // A primary button that's wide enough and has apply-related text
-            if (cl.includes('primary') && rect.width > 60) {
-                if (t.includes('postul') || t.includes('candid') || t.includes('apply') || 
-                    t.includes('facile') || !t) {
-                    btn.click();
-                    return {found: true, text: btn.textContent.trim().substring(0,30)};
-                }
-            }
-        }
-        
-        // Strategy 3: Take a screenshot so we can see what's on the page
-        return {found: false, text: 'none', btns: allBtns.length, 
-                btnTexts: Array.from(allBtns).slice(0,10).map(b => 
-                    (b.textContent || '').trim().substring(0,25) + '|cls:' + (b.className || '').substring(0,30)
-                ).join(' || ')};
+        return {found: false, text: 'none'};
     }""")
-    if not result.get('found', False):
-        log(f"  Debug - buttons found: {result.get('btnTexts', '?')[:200]}")
     return result.get('found', False)
 
 def find_job_links(page):
