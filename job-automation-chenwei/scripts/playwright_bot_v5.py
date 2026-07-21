@@ -247,8 +247,17 @@ def handle_easy_apply_v5(page):
             }}
             
             // Check if done
-            const body = document.body.innerText || '';
-            const done = body.includes('Candidature envoy') || body.includes('Application sent');
+            // Check if application was truly submitted
+            const modalOverlay = document.querySelector('[class*="artdeco-modal-overlay"]');
+            const modalGone = !modalOverlay || modalOverlay.style.display === 'none' || modalOverlay.offsetParent === null;
+            const successText = document.body.innerText || '';
+            // Only done if: modal is gone AND success text is shown
+            // OR specific success button exists
+            const allBtns2 = document.querySelectorAll('button');
+            const hasSubmitAnother = Array.from(allBtns2).some(b => (b.textContent || '').includes('Envoyer une autre candidature'));
+            const hasDoneBtn = Array.from(allBtns2).some(b => ['Terminer', 'Termine', 'Done', 'Dismiss'].includes((b.textContent || '').trim()));
+            const modalVisible = modalOverlay && modalOverlay.offsetParent !== null;
+            const done = hasSubmitAnother || hasDoneBtn || (successText.includes('Candidature envoyée avec succès') && !modalVisible);
             
             return {{ filledCount: filled.length, filled: filled.slice(0,5), button: btnClicked, step: step, done: done }};
         }}""", step)
