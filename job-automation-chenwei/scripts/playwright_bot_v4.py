@@ -57,7 +57,7 @@ def handle_easy_apply(page):
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     for step in range(10):
         time.sleep(random.uniform(2, 4))
-        
+
         # Fill text inputs via Playwright
         try:
             for inp in page.locator("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea").all():
@@ -71,7 +71,7 @@ def handle_easy_apply(page):
                     try: inp.fill(answer); log(f"    Rempli: {txt[:20]}..."); time.sleep(0.3)
                     except: pass
         except: pass
-        
+
         # Handle radio/checkboxes
         try:
             for r in page.locator("input[type=radio], input[type=checkbox]").all():
@@ -81,13 +81,13 @@ def handle_easy_apply(page):
                     try: r.check(); log(f"    Check: {lt[:20]}...")
                     except: pass
         except: pass
-        
+
         # Find and click the next/submit button - LinkedIn Easy Apply specific
         result = page.evaluate("""() => {
             // Strategy 1: Primary action button in the modal (blue, prominent)
             const modal = document.querySelector('[class*="artdeco-modal"], [class*="modal"], [class*="easy-apply"]') || document;
             const allBtns = modal.querySelectorAll('button');
-            
+
             // Strategy 1: Primary blue button (artdeco-button--primary)
             const primaryBtns = modal.querySelectorAll('button.artdeco-button--primary');
             for (const btn of primaryBtns) {
@@ -97,7 +97,7 @@ def handle_easy_apply(page):
                     return {found: true, text: btn.textContent.trim().substring(0,20)};
                 }
             }
-            
+
             // Strategy 2: Match button text in modal
             const nextTerms = ['suivant', 'next', 'continuer', 'continue', 'examiner', 'review', 'envoyer', 'submit', 'postuler', 'apply', 'send', 'done', 'termine', 'terminer'];
             for (const btn of allBtns) {
@@ -111,7 +111,7 @@ def handle_easy_apply(page):
                     }
                 }
             }
-            
+
             // Strategy 3: Wide/decorative buttons (not tiny icons)
             for (const btn of allBtns) {
                 if (btn.offsetParent === null) continue;
@@ -125,7 +125,7 @@ def handle_easy_apply(page):
                     return {found: true, text: btn.textContent.trim().substring(0,20)};
                 }
             }
-            
+
             // Strategy 4: Last NON-close/non-save visible button
             const candidates = Array.from(allBtns).filter(b => {
                 if (b.offsetParent === null) return false;
@@ -145,11 +145,11 @@ def handle_easy_apply(page):
             }
             return {found: false, text: ''};
         }""")
-        
+
         if result.get('found'):
             log(f"    Bouton: {result.get('text', '?')[:20]}")
             time.sleep(random.uniform(2, 3))
-            
+
             # Check if submitted
             body = page.evaluate("document.body.innerText") or ""
             if "Candidature envoy" in body or "Application sent" in body or "Candidature envoyée" in body:
@@ -176,68 +176,69 @@ def click_easy_apply(page):
             applyBtn.click();
             return {found: true, text: (applyBtn.textContent || '').trim().substring(0,30)};
         }
-        
+
         // Strategy 2: Text match on visible buttons
         const allBtns = document.querySelectorAll('button');
-        const terms = ["candidature simplifiée", "candidature simplifiee", 
+        const terms = ["candidature simplifiée", "candidature simplifiee",
                        "easy apply", "postuler facilement", "apply"];
         const skipCls = ["jobs-save-button", "follow", "msg-overlay"];
-        
+
         for (const btn of allBtns) {
             if (btn.offsetParent === null) continue;
             const t = (btn.textContent || '').trim().toLowerCase();
             const cl = (btn.className || '').toLowerCase();
-            
+
             if (skipCls.some(s => cl.includes(s))) continue;
-            
+
             if (cl.includes('jobs-apply') || terms.some(term => t.includes(term))) {
                 btn.click();
                 return {found: true, text: (btn.textContent || '').trim().substring(0,30)};
             }
         }
-        
+
         return {found: false, text: 'none'};
     }""")
     return result.get('found', False)
 
-def find_job_links(page):
+def find_job_cards(page):
+    """Find job card elements on the SEARCH page (not URLs, so we stay on the page with jobs-apply-button)."""
     return page.evaluate("""() => {
         const resultList = document.querySelector('ul.jobs-search__results-list');
         if (resultList) {
-            const links = resultList.querySelectorAll('a.base-card__full-link, a[href*="/jobs/view/"]');
-            if (links.length > 0) return Array.from(links).map(a => a.href);
             const cards = resultList.querySelectorAll('div.job-search-card, div.base-search-card');
-            if (cards.length > 0) return 'ELEMENTS:' + cards.length + '|TAG:DIV|CLS:job-search-card';
+            if (cards.length > 0) return {count: cards.length, tag: 'DIV', cls: 'job-search-card'};
         }
-        let links = Array.from(document.querySelectorAll('a[href*="/jobs/view/"]'));
-        if (links.length > 0) return links.map(a => a.href);
-        const allCards = document.querySelectorAll(
-            'div.job-search-card, div.base-search-card, a.base-card__full-link, ' +
-            '[data-entity-urn*="jobPosting"], .job-card-container, li[data-occludable-job-id]'
+        const fallbacks = document.querySelectorAll(
+            'div.job-search-card, div.base-search-card, ' +
+            'li[data-entity-urn], li[data-occludable-job-id], ' +
+            'li.jobs-search-results__list-item'
         );
-        if (allCards.length > 0) return 'ELEMENTS:' + allCards.length + '|TAG:' + allCards[0].tagName + '|CLS:' + (allCards[0].className || '').substring(0,80);
-        const panel = document.querySelector('main, [class*="search-results"], [class*="jobs-search"]');
-        if (panel) {
-            const jobA = Array.from(panel.querySelectorAll('a')).filter(a => a.href.includes('/jobs/'));
-            if (jobA.length > 0) return jobA.map(a => a.href);
+        if (fallbacks.length > 0) {
+            return {count: fallbacks.length, tag: fallbacks[0].tagName, cls: (fallbacks[0].className || '').substring(0,60)};
         }
-        return 'NONE';
+        // Last resort: any card-like element in the results area
+        const area = document.querySelector('[class*="search-results"], [class*="jobs-search"]');
+        if (area) {
+            const items = area.querySelectorAll(':scope > ul > li, :scope > li, :scope > div > div');
+            if (items.length > 0) return {count: Math.min(items.length, 20), tag: items[0].tagName, cls: (items[0].className || '').substring(0,60)};
+        }
+        return {count: 0, tag: '-', cls: 'none'};
     }""")
 
 def main():
     from playwright.sync_api import sync_playwright
-    
+
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    
+
     cf_username = globals().get("username", "chen771216000@gmail.com")
     cf_password = globals().get("password", "1216413@Huyangfang")
     cf_terms = globals().get("search_terms", ["alternance graphiste", "alternance graphisme", "alternance illustrateur", "alternance branding"])
     cf_location = globals().get("search_location", "Paris, France")
-    
+
     pw_data_dir = str(Path(__file__).parent / "playwright_data")
     os.makedirs(pw_data_dir, exist_ok=True)
-    
+
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
             user_data_dir=pw_data_dir,
@@ -247,9 +248,9 @@ def main():
             locale="fr-FR",
             timezone_id="Europe/Paris",
         )
-        
+
         page = context.pages[0] if context.pages else context.new_page()
-        
+
         try:
             log("=" * 50)
             log("  LinkedIn Easy Apply Bot V4 - Hu Chenwei")
@@ -265,18 +266,18 @@ def main():
             log("")
             log("=" * 50)
             log("")
-            
+
             page.goto("https://www.linkedin.com/login", wait_until="load", timeout=20000)
             time.sleep(2)
-            
+
             input(">>> Appuie sur ENTREE une fois connecte a LinkedIn... ")
-            
+
             # Wait for any challenge/redirect
             log("Verification de la connexion...")
             time.sleep(3)
             wait_start = time.time()
             max_wait = 300
-            
+
             while time.time() - wait_start < max_wait:
                 try:
                     current_url = page.url.lower()
@@ -300,25 +301,25 @@ def main():
             else:
                 log("TIMEOUT - pas connecte apres 5 min")
                 return
-            
+
             # Search and apply
             total_applied = 0
             max_apps = 3
-            
+
             for term in cf_terms:
                 if total_applied >= max_apps:
                     break
-                
+
                 log(f"\nRecherche: {term}")
                 qs = f"keywords={term.replace(' ', '+')}&location={cf_location.replace(' ', '+').replace(',', '%2C')}&f_AL=true&start=0"
-                
+
                 try:
                     page.goto(f"https://www.linkedin.com/jobs/search/?{qs}", wait_until="load", timeout=25000)
                 except:
                     pass
-                
+
                 time.sleep(4)
-                
+
                 # Scroll for lazy load
                 page.evaluate("window.scrollTo(0, 0)")
                 time.sleep(1)
@@ -327,24 +328,21 @@ def main():
                     time.sleep(0.8)
                 page.evaluate("window.scrollTo(0, 0)")
                 time.sleep(2)
-                
+
                 ptitle = page.evaluate("document.title")
                 log(f"  Page: {ptitle[:60]}")
+
+                cards_result = find_job_cards(page)
+                count = cards_result.get('count', 0)
+                log(f"  {count} cards found (tag={cards_result.get('tag','?')})")
                 
-                links_result = find_job_links(page)
-                log(f"  Jobs: {str(links_result)[:150]}")
-                
-                if isinstance(links_result, list):
-                    urls = links_result
-                elif isinstance(links_result, str) and links_result.startswith('ELEMENTS:'):
-                    parts = links_result.split('|')
-                    count = int(parts[0].split(':')[1])
+                if count > 0:
                     log(f"  {count} cards to click")
-                    
+
                     for idx in range(min(count, 5)):
                         if total_applied >= max_apps:
                             break
-                        
+
                         log(f"  Offre {idx+1}...")
                         clicked = page.evaluate(f"""(idx) => {{
                             let els = document.querySelectorAll('ul.jobs-search__results-list div.job-search-card, ul.jobs-search__results-list div.base-search-card');
@@ -353,7 +351,7 @@ def main():
                             }}
                             if (els[idx]) {{
                                 if (els[idx].tagName === 'A') {{ els[idx].click(); }}
-                                else {{ 
+                                else {{
                                     const link = els[idx].querySelector('a.base-card__full-link, a[href*=\"/jobs/view/\"]');
                                     if (link) link.click();
                                     else els[idx].click();
@@ -362,12 +360,12 @@ def main():
                             }}
                             return false;
                         }}""", idx)
-                        
+
                         if not clicked:
                             log("    Cannot click")
                             continue
                         time.sleep(random.uniform(2, 4))
-                        
+
                         # Find Easy Apply button (comprehensive search)
                         found = click_easy_apply(page)
                         if found:
@@ -379,33 +377,16 @@ def main():
                             time.sleep(5)
                         else:
                             log("    No Easy Apply")
-                    
+
                     continue
-                else:
-                    urls = []
                 
-                for i, job_url in enumerate(urls[:5]):
-                    if total_applied >= max_apps:
-                        break
-                    log(f"  Offre {i+1}...")
-                    try:
-                        page.goto(job_url, wait_until="load", timeout=15000)
-                        time.sleep(3)
-                    except: pass
-                    
-                    found = click_easy_apply(page)
-                    if found:
-                        log(f"  Easy Apply!")
-                        time.sleep(random.uniform(2, 3))
-                        if handle_easy_apply(page):
-                            total_applied += 1
-                            log(f"  Total: {total_applied}")
-                        time.sleep(5)
-                    else:
-                        log("    No Easy Apply")
-            
+                log("    No job cards found")
+                try:
+                    page.screenshot(path=str(LOG_DIR / f"no_cards_{term[:10].replace(' ', '_')}.png"))
+                except: pass
+
             log(f"\nFini - {total_applied} candidature(s)")
-            
+
         except Exception as e:
             log(f"FATAL: {str(e)[:300]}")
             import traceback
