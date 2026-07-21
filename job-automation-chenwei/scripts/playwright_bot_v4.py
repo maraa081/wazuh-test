@@ -140,7 +140,7 @@ def main():
     
     log("=" * 50)
     log("  LinkedIn Easy Apply Bot V4 - Hu Chenwei")
-    log("  Playwright + Chrome natif + profil utilisateur")
+    log("  Playwright + Chromium integre")
     log("=" * 50)
     
         # Get config vars (module-level globals from imports)
@@ -256,7 +256,7 @@ def main():
             loc = cf_location
             
             total_applied = 0
-            max_apps = 1
+            max_apps = 3
             
             for term in terms:
                 if total_applied >= max_apps: break
@@ -270,26 +270,51 @@ def main():
                 time.sleep(3)
                 
                 # Scroll to load jobs
-                for _ in range(3):
-                    try:
-                        cards = page.locator("[data-entity-urn*=jobPosting], .job-card-container, [class*=job-card]")
-                        if cards.count() > 0: break
-                    except: pass
-                    page.evaluate("window.scrollBy(0, 400)")
-                    time.sleep(2)
+                page.evaluate("window.scrollTo(0, 0)")
+                time.sleep(1)
+                for _ in range(5):
+                    page.evaluate("window.scrollBy(0, 600)")
+                    time.sleep(1)
+                page.evaluate("window.scrollTo(0, 0)")
+                time.sleep(2)
                 
-                try:
-                    cards_count = cards.count()
-                except:
-                    cards_count = 0
-                log(f"  {cards_count} offres chargees")
+                # Use JS to find all job card links
+                job_count = page.evaluate("""() => {
+                    // Try multiple known LinkedIn selectors
+                    let cards = document.querySelectorAll('a.job-card-list__title, a[class*=job-card], a[data-job-id], .job-card-container a:first-child, li[data-entity-urn] a');
+                    if (cards.length === 0) {
+                        cards = document.querySelectorAll('[class*=job-card] a[href*="/jobs/view/"]');
+                    }
+                    if (cards.length === 0) {
+                        // Fallback: any job link in the left panel
+                        const panel = document.querySelector('.jobs-search-results-list') || document.querySelector('[class*=search-results]');
+                        if (panel) cards = panel.querySelectorAll('a[href*="/jobs/view/"]');
+                    }
+                    return cards.length;
+                }""")
+                log(f"  {job_count} offres chargees")
                 
-                for i in range(min(cards_count, 5)):
+                for i in range(min(job_count if job_count else 10, 5)):
                     if total_applied >= max_apps: break
                     
                     try:
                         log(f"  Offre {i+1}...")
-                        cards.nth(i).click()
+                        clicked = page.evaluate(f"""(idx) => {{
+                            let cards = document.querySelectorAll('a.job-card-list__title, a[class*=job-card], a[data-job-id], .job-card-container a:first-child, li[data-entity-urn] a');
+                            if (cards.length === 0) {{
+                                cards = document.querySelectorAll('[class*=job-card] a[href*="/jobs/view/"]');
+                            }}
+                            if (cards.length === 0) {{
+                                const panel = document.querySelector('.jobs-search-results-list') || document.querySelector('[class*=search-results]');
+                                if (panel) cards = panel.querySelectorAll('a[href*="/jobs/view/"]');
+                            }}
+                            if (cards[idx]) {{ cards[idx].click(); return true; }}
+                            return false;
+                        }}""", i)
+                        
+                        if not clicked:
+                            log("    Impossible de cliquer sur l'offre")
+                            continue
                         time.sleep(random.uniform(2, 4))
                         
                         # Find Easy Apply
