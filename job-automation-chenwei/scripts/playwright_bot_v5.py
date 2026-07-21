@@ -175,37 +175,66 @@ def handle_easy_apply_v5(page):
             }}
             
             // STEP B: Find and click next/submit button
-            const modal = document.querySelector('[class*="artdeco-modal"], [role="dialog"], [class*="modal"]') || document;
-            const btns = modal.querySelectorAll('button');
+            const allBtns = document.querySelectorAll('button');
+            const skipNavText = ['vous', 'emplois', 'reseau', 'messagerie', 'notification', 'accueil', 'profil', 'jobs', 'network', 'messaging', 'notifications', 'home', 'raccourci', 'fermer le menu', 'acceder a la recherche', 'passer au contenu', 'conditions', 'solutions', 'telecharger', 'plus', 'publicite', 'toutes les candidatures'];
             let btnClicked = null;
             
-            // Try primary buttons first
-            for (const btn of btns) {{
+            // Strategy 1: Match text exactly
+            const nextTerms = ['suivant', 'next', 'continuer', 'continue', 'examiner', 'review', 'envoyer', 'submit', 'postuler', 'apply', 'send', 'done', 'termine', 'terminer'];
+            for (const btn of allBtns) {{
+                if (btn.offsetParent === null) continue;
                 const t = (btn.textContent || '').trim().toLowerCase();
                 const cl = (btn.className || '').toLowerCase();
-                const skip = ['fermer', 'close', 'cancel', 'annuler', 'x', '...', 'enregistrer', 'save'];
-                if (skip.some(s => t === s || t.startsWith(s))) continue;
-                if (btn.offsetParent === null) continue;
-                if (cl.includes('primary') || t === 'suivant' || t.startsWith('suivant') || t === 'next' || t.startsWith('next') || t === 'continuer' || t === 'envoyer' || t.startsWith('envoyer') || t === 'submit' || t.startsWith('submit') || t === 'examiner' || t.startsWith('examiner') || t === 'postuler' || t.startsWith('postuler') || t === 'apply' || t.startsWith('apply')) {{
+                if (!t) continue;
+                if (skipNavText.some(s => t === s)) continue;
+                if (nextTerms.some(term => t === term || t.startsWith(term))) {{
                     btn.click();
                     btnClicked = t.substring(0,20);
                     break;
                 }}
             }}
             
-            // Fallback: last meaningful button
+            // Strategy 2: Primary styled buttons, not navigation
             if (!btnClicked) {{
-                const candidates = Array.from(btns).filter(b => {{
+                for (const btn of allBtns) {{
+                    if (btn.offsetParent === null) continue;
+                    const t = (btn.textContent || '').trim().toLowerCase();
+                    const cl = (btn.className || '').toLowerCase();
+                    if (!t) continue;
+                    if (skipNavText.some(s => t.includes(s))) continue;
+                    if (cl.includes('primary')) {{
+                        const rect = btn.getBoundingClientRect();
+                        if (rect.width > 50) {{
+                            btn.click();
+                            btnClicked = 'pri:' + t.substring(0,15);
+                            break;
+                        }}
+                    }}
+                }}
+            }}
+            
+            if (!btnClicked) {{
+                // Strategy 3: Any visible button not in nav, not save/close, prefer bottom
+                const candidates = Array.from(allBtns).filter(b => {{
                     if (b.offsetParent === null) return false;
                     const t = (b.textContent || '').trim().toLowerCase();
                     if (!t) return false;
-                    const skip = ['fermer', 'close', 'cancel', 'annuler', 'x', '...', 'enregistrer', 'save'];
+                    const skip = ['fermer', 'close', 'cancel', 'annuler', 'x', '...', 'enregistrer', 'save', 'suivre', 'follow', 'vous', 'emplois', 'accueil', 'messagerie', 'plus', 'partager'];
                     return !skip.some(s => t === s || t.startsWith(s));
                 }});
+                // Sort by vertical position (bottom-most is likely the modal button)
+                candidates.sort((a,b) => {{
+                    const ra = a.getBoundingClientRect();
+                    const rb = b.getBoundingClientRect();
+                    return (rb.top + rb.height) - (ra.top + ra.height);
+                }});
                 if (candidates.length > 0) {{
-                    candidates[candidates.length-1].click();
-                    btnClicked = 'fb:' + (candidates[candidates.length-1].textContent || '').trim().substring(0,15);
-                }}
+                    const btn = candidates[0];
+                    const rect = btn.getBoundingClientRect();
+                    if (rect.width > 50 && rect.height > 20) {{
+                        btn.click();
+                        btnClicked = 'pos:' + (btn.textContent || '').trim().substring(0,15);
+                    }}}
             }}
             
             // Check if done
