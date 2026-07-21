@@ -1,5 +1,23 @@
 // JavaScript handler for LinkedIn Easy Apply modal (passed to page.evaluate)
-function easyApplyHandler(step, hasFileDetectedAlready, answers) {
+function easyApplyHandler(args) {
+    const step = args.step;
+    const hasFileDetectedAlready = args.hasFile;
+    const answers = args.answers || {
+        phone: "+33678352974",
+        email: "via0000413@gmail.com",
+        portfolio: "https://github.com/maraa081/wazuh-test/tree/main/test",
+        linkedin: "https://www.linkedin.com/in/chenwei-h-9223b3422/",
+        motivation: "Artiste et designer visuelle formee aux Beaux-Arts de Shanghai, Nantes et Besancon.",
+        salary: "A discuter selon la grille de l ecole",
+        availability: "A partir de septembre 2026",
+        experience: "Formation Beaux-Arts Shanghai, Nantes, Besancon.",
+        skills: "Photoshop, Illustrator, InDesign, Procreate, ZBrush, Figma",
+        languages: "Chinois (maternel), Francais (B2), Anglais (intermediaire)",
+        visa: "Non - Titre de sejour valide",
+        rhythm: "3j entreprise / 2j ecole",
+        years: "2",
+        role: "Graphiste / Illustratrice en alternance",
+    };
     // STEP A: Fill all form fields AND detect file inputs
     const allFields = document.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select, input[type=file]');
     let lastWasCountry = false;

@@ -79,7 +79,7 @@ def handle_easy_apply_v5(page):
         time.sleep(random.uniform(2, 3))
         
         # Execute JS and parse result
-        result_json = page.evaluate(js_handler, step, cv_uploaded_this_session)
+        result_json = page.evaluate(js_handler, {"step": step, "hasFile": cv_uploaded_this_session})
         if isinstance(result_json, str):
             result = json.loads(result_json)
         else:
