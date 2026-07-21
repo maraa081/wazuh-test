@@ -63,20 +63,38 @@ def handle_easy_apply(page):
 
         # Fill text inputs via Playwright
         try:
-            for inp in page.locator("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea").all():
-                if inp.get_attribute("value"): continue
+            inputs = page.locator("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea").all()
+            prev_was_country = False
+            for inp in inputs:
+                if inp.get_attribute("value"): 
+                    prev_was_country = False
+                    continue
                 inp_type = inp.get_attribute("type") or ""
                 ph = (inp.get_attribute("placeholder") or "").strip()
                 aria = (inp.get_attribute("aria-label") or "").strip()
                 name = (inp.get_attribute("name") or "").strip()
                 txt = f"{ph} {aria} {name} {inp_type}"
-                # Phone detection: type=tel or starts with 0/+
-                if 'tel' in inp_type or 'phone' in inp_type:
-                    try: inp.fill('+33678352974'); log(f"    Rempli TEL: {inp_type}"); time.sleep(0.3); continue
+                
+                # Detect phone: type=tel, or right after country code (+33)
+                if 'tel' in inp_type or prev_was_country:
+                    try: 
+                        inp.fill('+33678352974')
+                        log(f"    Rempli TEL")
+                        time.sleep(0.3)
+                        prev_was_country = False
+                        continue
                     except: pass
+                
+                # Track if previous input had country code
+                val = inp.get_attribute("value") or ""
+                prev_was_country = '+33' in val
+                
                 answer = answer_question(txt)
                 if answer:
-                    try: inp.fill(answer); log(f"    Rempli: {txt[:25]}..."); time.sleep(0.3)
+                    try: 
+                        inp.fill(answer)
+                        log(f"    Rempli: {txt[:25]}...")
+                        time.sleep(0.3)
                     except: pass
         except: pass
 
