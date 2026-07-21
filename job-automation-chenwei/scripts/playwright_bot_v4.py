@@ -184,8 +184,10 @@ def main():
             
             url = page.url.lower()
             log(f"URL: {url[:80]}")
+            body_text = page.evaluate("document.body.innerText")
+            is_logged = ("feed" in url or "job" in url) and "S'identifier" not in body_text and "Se connecter" not in body_text
             
-            if "login" in url or "checkpoint" in url:
+            if not is_logged:
                 log("⚠️ PAS CONNECTE A LINKEDIN")
                 log("Le bot va essayer de se connecter avec les credentials...")
                 
@@ -227,13 +229,17 @@ def main():
                     return false;
                 }""")
                 
-                time.sleep(5)
+                time.sleep(8)
                 
                 # Check result
                 url2 = page.url.lower()
+                body2 = page.evaluate("document.body.innerText") or ""
                 log(f"After login: {url2[:80]}")
+                log(f"  Page body check: {'S\'identifier' in body2}")
                 
-                if "login" in url2 or "checkpoint" in url2:
+                still_logged_out = "login" in url2 or "checkpoint" in url2 or "S'identifier" in body2 or "Se connecter" in body2
+                
+                if still_logged_out:
                     log("⚠️ Login echoue - Chrome va rester ouvert")
                     log("Connecte-toi manuellement dans la fenetre Chrome")
                     log("Le bot attend jusqu'a 5 minutes...")
@@ -242,7 +248,9 @@ def main():
                         try:
                             page.goto("https://www.linkedin.com/feed/", wait_until="load", timeout=10000)
                             time.sleep(2)
-                            if "feed" in page.url.lower():
+                            u = page.url.lower()
+                            bt = page.evaluate("document.body.innerText") or ""
+                            if ("feed" in u or "job" in u) and "S'identifier" not in bt and "Se connecter" not in bt:
                                 log("✅ Connecte!")
                                 break
                         except: pass
@@ -304,8 +312,9 @@ def main():
                 page_title = page.evaluate("document.title")
                 log(f"  Page title: {page_title[:80]}")
                 
-                # Use JS to find the best selector for job cards
+                # Find job cards - universal approach
                 job_info = page.evaluate("""() => {
+                    // Strategy 1: specific selectors
                     const selectors = [
                         'a.job-card-list__title',
                         'a.job-card-card__title',
@@ -314,31 +323,37 @@ def main():
                         '.job-card-container a',
                         'li[data-entity-urn]',
                         'li[data-occludable-job-id]',
-                        '[class*=jobs-search-results] li',
-                        'article',
+                        'li.jobs-search-results__list-item',
+                        '[class*=search-results] li',
+                        '[class*=jobs-search-results] > *',
                     ];
                     for (const sel of selectors) {
                         const els = document.querySelectorAll(sel);
                         if (els.length > 0) {
                             const el = els[0];
-                            const info = {
-                                tag: el.tagName,
-                                id: (el.id || '').substring(0,40),
-                                cls: (el.className || '').substring(0,80),
-                                href: (el.href || el.getAttribute('href') || '').substring(0,120),
-                                text: (el.textContent || '').trim().substring(0,60),
-                            };
-                            return {count: els.length, sel: sel, info: info};
+                            return {count: els.length, sel: sel, tag: el.tagName, cls: (el.className || '').substring(0,80), text: (el.textContent || '').trim().substring(0,60)};
                         }
                     }
-                    const allA = Array.from(document.querySelectorAll('a')).map(a => (a.href || '').substring(0,80)).join('|');
-                    return {count: 0, sel: 'none', info: {tag: '-', cls: document.body.innerText.substring(0,200)}};
+                    
+                    // Strategy 2: any list in the left panel
+                    const left = document.querySelector('[class*=search-results]');
+                    if (left) {
+                        const items = left.querySelectorAll(':scope > *');
+                        if (items.length > 0) return {count: items.length, sel: 'left-panel-children', tag: items[0].tagName, cls: (items[0].className || '').substring(0,80), text: (items[0].textContent || '').trim().substring(0,60)};
+                    }
+                    
+                    // Strategy 3: any element with job-related classes
+                    const all = document.querySelectorAll('[class*="job"], [class*="Job"]');
+                    const clickables = Array.from(all).filter(el => ['A', 'LI', 'BUTTON', 'DIV'].includes(el.tagName) && el.children.length > 0);
+                    if (clickables.length > 0) return {count: clickables.length, sel: 'any-job-class', tag: clickables[0].tagName, cls: (clickables[0].className || '').substring(0,80), text: (clickables[0].textContent || '').trim().substring(0,60)};
+                    
+                    return {count: 0, sel: 'none', tag: '-', cls: document.body.innerText.substring(0,300)};
                 }""")
                 log(f"  Finds: {job_info.get('count', 0)}")
                 log(f"  Selector: {job_info.get('sel', '?')}")
-                log(f"  Sample tag: {job_info.get('info', {}).get('tag', '?')}")
-                log(f"  Sample cls: {str(job_info.get('info', {}).get('cls', '?'))[:60]}")
-                log(f"  Sample text: {str(job_info.get('info', {}).get('text', '?'))[:60]}")
+                log(f"  Tag: {job_info.get('tag', '?')}")
+                log(f"  Class: {str(job_info.get('cls', '?'))[:60]}")
+                log(f"  Text: {str(job_info.get('text', '?'))[:60]}")
                 
                 jc = job_info.get('count', 0) if isinstance(job_info, dict) else (job_info or 0)
                 best_sel = job_info.get('sel', '') if isinstance(job_info, dict) else ''
