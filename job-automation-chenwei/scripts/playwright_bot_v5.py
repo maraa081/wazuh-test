@@ -241,7 +241,8 @@ def main():
     cf_terms = globals().get("search_terms", ["alternance graphiste", "alternance graphisme", "alternance illustrateur", "alternance branding"])
     cf_location = globals().get("search_location", "Paris, France")
     
-    pw_data_dir = str(Path(__file__).parent / "playwright_data")
+    # Use persistent browser data outside the project folder (survives re-downloads)
+    pw_data_dir = os.path.join(os.environ.get("USERPROFILE", os.path.expanduser("~")), ".linkedin_bot_data")
     os.makedirs(pw_data_dir, exist_ok=True)
     
     with sync_playwright() as p:
@@ -269,18 +270,29 @@ def main():
             time.sleep(2)
             input(">>> Appuie sur ENTREE une fois connecte... ")
             
-            # Wait for connection
-            log("Verification...")
-            time.sleep(3)
+            # Wait for connection (check various logged-in states)
+            log("Verification connexion...")
+            time.sleep(2)
+            connected = False
             for i in range(60):
                 try:
-                    u = page.url.lower()
-                    if "feed" in u: log("Connecte!"); break
-                    if "checkpoint" in u or "pin" in u: log("  Attente code PIN...")
+                    current_url = page.url.lower()
+                    page_title = page.evaluate("document.title")
+                    page_text = page.evaluate("document.body.innerText") or ""
+                    
+                    # Connected: feed in URL, jobs in title, no login in text
+                    if "feed" in current_url or ("emploi" in page_title and "S'identifier" not in page_text):
+                        log("Connecte!"); connected = True; break
+                    if "checkpoint" in current_url or "pin" in current_url or "challenge" in current_url:
+                        log("  LinkedIn demande verification (code PIN/email)...")
+                    else:
+                        log(f"  En attente... ({i*5}s) url={current_url[:40]}")
                     time.sleep(5)
-                except: time.sleep(5)
-            else:
-                log("TIMEOUT"); return
+                except Exception as e:
+                    log(f"  Check: {str(e)[:40]}")
+                    time.sleep(5)
+            if not connected:
+                log("TIMEOUT connexion"); return
             
             total_applied = 0
             max_apps = 3
