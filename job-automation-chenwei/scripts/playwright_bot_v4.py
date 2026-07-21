@@ -192,32 +192,37 @@ def main():
                 page.goto("https://www.linkedin.com/login", wait_until="load", timeout=15000)
                 time.sleep(2)
                 
-                # Fill login - use Playwright fill (more reliable than JS)
-                try:
-                    email_input = page.locator("input#session_key, input[name=session_key], input[autocomplete=username], input[type=email]")
-                    email_input.first.fill(cf_username)
-                    log("  Email filled")
-                except Exception as e:
-                    log(f"  Email fill error: {str(e)[:60]}")
-                
-                try:
-                    pass_input = page.locator("input#session_password, input[name=session_password], input[type=password]")
-                    pass_input.first.fill(cf_password)
-                    log("  Password filled")
-                except Exception as e:
-                    log(f"  Password fill error: {str(e)[:60]}")
+                # Fill login - via JS (plus fiable que Playwright fill sur LinkedIn)
+                page.wait_for_timeout(1000)
+                filled = page.evaluate("""({u, p}) => {
+                    const emailInput = document.querySelector('input[id="session_key"], input[name="session_key"], input[autocomplete="username"], input[type="email"], input:not([type="hidden"]):not([type="password"])');
+                    const passInput = document.querySelector('input[id="session_password"], input[name="session_password"], input[type="password"]');
+                    if (emailInput) {
+                        emailInput.focus();
+                        emailInput.value = '';
+                        emailInput.value = u;
+                        emailInput.dispatchEvent(new Event('input', {bubbles: true}));
+                        emailInput.dispatchEvent(new Event('change', {bubbles: true}));
+                    }
+                    if (passInput) {
+                        passInput.focus();
+                        passInput.value = '';
+                        passInput.value = p;
+                        passInput.dispatchEvent(new Event('input', {bubbles: true}));
+                        passInput.dispatchEvent(new Event('change', {bubbles: true}));
+                    }
+                    return {email: !!emailInput, pass: !!passInput};
+                }""", {"u": cf_username, "p": cf_password})
+                log(f"Login fill: email={filled.get('email')}, pass={filled.get('pass')}")
                 
                 time.sleep(1)
                 
-                # Click submit with Playwright
-                try:
-                    submit_btn = page.locator("button[type=submit], button:has-text('S\'identifier'), button:has-text('Sign in')")
-                    submit_btn.first.click()
-                    log("  Submit clicked")
-                except Exception as e:
-                    log(f"  Submit click error: {str(e)[:60]}")
-                    # Fallback: JS click
-                    page.evaluate("document.querySelector('button[type=submit]')?.click()")
+                # Click submit
+                page.evaluate("""() => {
+                    const btn = document.querySelector('button[type="submit"]');
+                    if (btn) { btn.click(); return true; }
+                    return false;
+                }""")
                 
                 time.sleep(8)
                 
