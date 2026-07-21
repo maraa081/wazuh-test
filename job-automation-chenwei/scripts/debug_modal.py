@@ -25,12 +25,20 @@ with sync_playwright() as p:
     
     print("=== LOGIN MANUEL ===")
     page.goto("https://www.linkedin.com/")
-    input(">>> Connecte-toi a LinkedIn, puis appuie sur ENTREE... ")
+    input(">>> 1. Connecte-toi a LinkedIn DANS CHROMIUM")
+    input(">>> 2. Complete le code PIN si demande")
+    input(">>> 3. Appuie sur ENTREE quand l'ACCUEIL LinkedIn s'affiche... ")
     
-    print("=== RECHERCHE ===")
-    page.goto("https://www.linkedin.com/jobs/search/?keywords=alternance+graphiste&location=Paris&f_AL=true")
-    time.sleep(5)
-    input(">>> Appuie sur ENTREE pour cliquer la 1ere offre... ")
+    print("Navigation vers la recherche...")
+    try:
+        page.goto("https://www.linkedin.com/jobs/search/?keywords=alternance+graphiste&location=Paris&f_AL=true", timeout=30000)
+    except:
+        print("(timeout ignore, tentative JS...)")
+        page.evaluate("window.location.href='https://www.linkedin.com/jobs/search/?keywords=alternance+graphiste&location=Paris&f_AL=true'")
+        time.sleep(5)
+    print("Page job chargee")
+    time.sleep(3)
+    input(">>> 4. Appuie sur ENTREE pour cliquer la 1ere offre... ")
     
     # Click first job via JS
     page.evaluate("""() => {
