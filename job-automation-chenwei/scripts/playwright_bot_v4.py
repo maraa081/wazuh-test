@@ -168,60 +168,62 @@ def handle_easy_apply(page):
     return False
 
 def click_easy_apply(page):
-    """Find and click Easy Apply button in the job detail panel (right side)."""
+    """Find and click Easy Apply button. Search whole page but smart filter."""
     result = page.evaluate("""() => {
-        // Only search the job detail panel on the right, not the whole page
-        const panel = document.querySelector('[class*="jobs-details"], [class*="job-details"], [class*="jobs-order"]');
-        const searchArea = panel || document;
+        // Search ALL buttons on the page
+        const allBtns = document.querySelectorAll('button');
         
-        // Strategy 1: Find the exact Easy Apply button by text inside the panel
-        const allEls = searchArea.querySelectorAll('button');
-        const terms = ["easy apply", "candidature simplifiée", "candidature simplifiee",
-                       "postuler facilement", "apply"];
+        // Terms to identify Easy Apply
+        const applyTerms = ["easy apply", "candidature simplifiée", "candidature simplifiee",
+                            "postuler facilement", "apply", "candidature"];
+        const skipTerms = ["enregistrer", "save", "message", "follow", "suivre", 
+                          "plus", "...", "signaler", "signal", "pour les entrep"];
         
-        // Exact match first
-        for (const btn of allEls) {
+        // Strategy 1: Exact match on any button (class or text contains Easy Apply)
+        for (const btn of allBtns) {
             const t = (btn.textContent || '').trim().toLowerCase();
             const cl = (btn.className || '').toLowerCase();
-            if (cl.includes('easy-apply') || cl.includes('jobs-apply')) {
+            const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
+            const combined = t + ' ' + cl + ' ' + aria;
+            
+            // Skip known non-apply buttons
+            if (skipTerms.some(s => t.includes(s) || t === s)) continue;
+            
+            // Check if it mentions applying
+            if (cl.includes('easy-apply') || cl.includes('jobs-apply') ||
+                aria.includes('apply') || aria.includes('candidature') ||
+                applyTerms.some(term => t.includes(term))) {
                 btn.click();
                 return {found: true, text: btn.textContent.trim().substring(0,30)};
             }
-            for (const term of terms) {
-                if (t === term || t.startsWith(term) || t.includes(term)) {
+        }
+        
+        // Strategy 2: Primary blue buttons - check all, skip non-apply
+        for (const btn of allBtns) {
+            const t = (btn.textContent || '').trim().toLowerCase();
+            const cl = (btn.className || '').toLowerCase();
+            
+            if (skipTerms.some(s => t.includes(s) || t === s)) continue;
+            const rect = btn.getBoundingClientRect();
+            
+            // A primary button that's wide enough and has apply-related text
+            if (cl.includes('primary') && rect.width > 60) {
+                if (t.includes('postul') || t.includes('candid') || t.includes('apply') || 
+                    t.includes('facile') || !t) {
                     btn.click();
                     return {found: true, text: btn.textContent.trim().substring(0,30)};
                 }
             }
         }
         
-        // Strategy 2: Primary blue button that says something about applying
-        const primaryBtns = searchArea.querySelectorAll('button.artdeco-button--primary');
-        for (const btn of primaryBtns) {
-            const t = (btn.textContent || '').trim().toLowerCase();
-            if (t.includes('postul') || t.includes('candid') || t.includes('apply') || t.includes('facile')) {
-                btn.click();
-                return {found: true, text: btn.textContent.trim().substring(0,30)};
-            }
-        }
-        
-        // Strategy 3: Any primary/large button NOT being Save/Follow/Message
-        for (const btn of allEls) {
-            const t = (btn.textContent || '').trim().toLowerCase();
-            const skipTerms = ['enregistrer', 'save', 'message', 'follow', 'suivre', 'plus', '...', 'x', 'signaler', 'signal'];
-            if (skipTerms.some(s => t === s || t.startsWith(s))) continue;
-            const cl = (btn.className || '').toLowerCase();
-            if (cl.includes('primary') || cl.includes('apply') || cl.includes('postul')) {
-                const rect = btn.getBoundingClientRect();
-                if (rect.width > 80) {  // Only wide buttons
-                    btn.click();
-                    return {found: true, text: btn.textContent.trim().substring(0,30)};
-                }
-            }
-        }
-        
-        return {found: false, text: 'none'};
+        // Strategy 3: Take a screenshot so we can see what's on the page
+        return {found: false, text: 'none', btns: allBtns.length, 
+                btnTexts: Array.from(allBtns).slice(0,10).map(b => 
+                    (b.textContent || '').trim().substring(0,25) + '|cls:' + (b.className || '').substring(0,30)
+                ).join(' || ')};
     }""")
+    if not result.get('found', False):
+        log(f"  Debug - buttons found: {result.get('btnTexts', '?')[:200]}")
     return result.get('found', False)
 
 def find_job_links(page):
