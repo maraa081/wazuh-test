@@ -156,6 +156,15 @@ def main():
     
     log(f"User data: {user_data_dir}")
     
+    # Kill existing Chrome to avoid "opening in existing session" error
+    import subprocess
+    try:
+        subprocess.run(["taskkill", "/F", "/IM", "chrome.exe"], capture_output=True, timeout=5)
+        log("Chrome processes killed for clean launch")
+    except:
+        pass
+    time.sleep(2)
+    
     with sync_playwright() as p:
         # Launch Chrome with user data dir directly
         # This preserves all cookies and sessions (including LinkedIn login)
