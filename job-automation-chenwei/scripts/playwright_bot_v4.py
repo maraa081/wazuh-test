@@ -156,22 +156,15 @@ def main():
     
     log(f"User data: {user_data_dir}")
     
-    # Kill existing Chrome to avoid "opening in existing session" error
-    import subprocess
-    try:
-        subprocess.run(["taskkill", "/F", "/IM", "chrome.exe"], capture_output=True, timeout=5)
-        log("Chrome processes killed for clean launch")
-    except:
-        pass
-    time.sleep(2)
-    
     with sync_playwright() as p:
-        # Launch Chrome with user data dir directly
-        # This preserves all cookies and sessions (including LinkedIn login)
+        # Use Playwright's bundled Chromium (more reliable than system Chrome)
+        # Create fresh user data dir for session persistence
+        pw_data_dir = str(Path(__file__).parent / "playwright_data")
+        os.makedirs(pw_data_dir, exist_ok=True)
+        log(f"Playwright data: {pw_data_dir}")
         context = p.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
+            user_data_dir=pw_data_dir,
             headless=False,
-            channel="chrome",
             args=[
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
