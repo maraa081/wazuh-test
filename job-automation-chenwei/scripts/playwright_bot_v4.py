@@ -272,6 +272,25 @@ def main():
                 # Scroll to load jobs
                 page.evaluate("window.scrollTo(0, 0)")
                 time.sleep(1)
+                # Dismiss any cookie/privacy popup that blocks job cards
+                cookie_closed = page.evaluate("""() => {
+                    const buttons = document.querySelectorAll('button');
+                    for (const btn of buttons) {
+                        const t = (btn.textContent || '').toLowerCase();
+                        if (t.includes('accepter') || t.includes('accept') || t.includes('autoriser') || t.includes('allow') || t.includes('refuser') || t.includes('decline') || t.includes('reject')) {
+                            btn.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                }""")
+                if cookie_closed:
+                    log("  Cookie popup dismissed")
+                    time.sleep(2)
+                
+                # Scroll to load jobs
+                page.evaluate("window.scrollTo(0, 0)")
+                time.sleep(1)
                 for _ in range(5):
                     page.evaluate("window.scrollBy(0, 600)")
                     time.sleep(1)
