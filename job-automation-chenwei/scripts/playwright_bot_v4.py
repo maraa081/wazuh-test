@@ -169,26 +169,39 @@ def main():
             
             input(">>> Appuie sur ENTREE une fois connecte a LinkedIn... ")
             
-            # Verify connection
-            page.goto("https://www.linkedin.com/feed/", wait_until="load", timeout=15000)
-            time.sleep(2)
-            if "login" in page.url.lower():
-                log("Pas encore connecte, j'attends 5 min...")
-                for i in range(60):
-                    try:
-                        page.goto("https://www.linkedin.com/feed/", wait_until="load", timeout=10000)
-                        time.sleep(2)
-                        if "feed" in page.url.lower():
-                            log("Connecte!")
-                            break
-                    except: pass
-                    log(f"  En attente... ({i*7}s)")
+            # Wait for any challenge/redirect to finish, then check status
+            log("Verification de la connexion...")
+            time.sleep(3)
+            current_url = page.url.lower()
+            log(f"URL actuelle: {current_url[:100]}")
+            
+            # Check if we need to wait for PIN challenge or login
+            wait_start = time.time()
+            max_wait = 300  # 5 min
+            while time.time() - wait_start < max_wait:
+                try:
+                    current_url = page.url.lower()
+                    if "feed" in current_url:
+                        log("Connecte!")
+                        break
+                    if "checkpoint" in current_url or "challenge" in current_url or "pin" in current_url:
+                        log("  LinkedIn demande une verification (code PIN/email)...")
+                        log("  Complete la verification dans la fenetre Chromium")
+                    elif "login" in current_url:
+                        log("  Toujours pas connecte... connecte-toi dans la fenetre Chromium")
+                    else:
+                        log(f"  Page en cours: {current_url[:60]}")
+                    
                     time.sleep(5)
-                else:
-                    log("TIMEOUT - pas connecte")
-                    return
+                    elapsed = int(time.time() - wait_start)
+                    if elapsed % 30 == 0:
+                        log(f"  Attente... ({elapsed}s)")
+                except Exception as e:
+                    log(f"  Check error: {str(e)[:50]}")
+                    time.sleep(5)
             else:
-                log("Connecte!")
+                log("TIMEOUT - pas connecte apres 5 min")
+                return
             
             # Search and apply
             total_applied = 0
